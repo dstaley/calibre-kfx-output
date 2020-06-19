@@ -267,6 +267,8 @@ KNOWN_FEATURES = {
 
         "yj_publisher_panels": {2},
 
+        "yj_ruby": {1},
+
         "yj_table": {
             1,
             2,
@@ -389,6 +391,9 @@ KNOWN_METADATA = {
             "1.36.1.0",
             "1.36.20.0",
             "1.37.2.0",
+            "1.38.0.0",
+            "1.38.37.0",
+            "1.39.30.0",
 
             "3.0.0",
             "3.1.0",
@@ -435,6 +440,9 @@ KNOWN_METADATA = {
             "3.36.1",
             "3.37.0",
             "3.38.0",
+            "3.39.0",
+            "3.39.1",
+            "3.40.0",
             }
 
     },
@@ -462,6 +470,7 @@ KNOWN_METADATA = {
             "none"
             },
         "multipage_selection": {"disabled"},
+        "nested_span": {"enabled"},
         "selection": {"enabled"},
         "user_visible_labeling": {"page_exclusive"},
 

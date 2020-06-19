@@ -716,7 +716,10 @@ def join_search_path(*args):
     return PATH_SEPARATOR.join(path_list)
 
 
-def make_unique_name(root_name, check_set, sep=""):
+def make_unique_name(root_name, check_set, sep="", always_suffix=False):
+    if (not always_suffix) and root_name and root_name not in check_set:
+        return root_name
+
     unique_number = 0
     while True:
         unique_name = "%s%s%d" % (root_name, sep, unique_number)
@@ -814,7 +817,7 @@ def pil_image_to_data(im, fmt="JPEG"):
     return outfile.getvalue()
 
 
-def convert_pdf_to_jpeg(log, pdf_data, page_num):
+def convert_pdf_to_jpeg(log, pdf_data, page_num, reported_errors=None):
     pdf_file = temp_filename("pdf", pdf_data)
     jpeg_dir = create_temp_dir()
 

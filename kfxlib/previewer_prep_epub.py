@@ -1004,7 +1004,9 @@ def is_page_label(s):
     if not s:
         return False
 
-    return re.match("^[0-9]+$", s) or re.match("^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$", s, re.IGNORECASE)
+    return (
+        re.match("^[0-9\u0660-\u0669\u06f0-\u06f9]+$", s) or
+        re.match("^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$", s, re.IGNORECASE))
 
 
 def xor_data(font_key, ofs_data_len, data):

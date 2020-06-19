@@ -126,6 +126,9 @@ class KindlePreviewer(ConversionApplication):
             26064312: "3.36.1",
             26375096: "3.37.0",
             26385848: "3.38.0",
+            32604616: "3.39.0",
+            32605640: "3.39.1",
+            36847048: "3.40.0",
             }
 
     if IS_MACOS:
@@ -172,6 +175,8 @@ class KindlePreviewer(ConversionApplication):
             64688208: "3.36.1",
             70578752: "3.37.0",
             70587408: "3.38.0",
+            78298688: "3.39.0",
+            80114960: "3.40.0",
             }
 
     def locate_program(self):
@@ -293,7 +298,7 @@ class ConversionProcess(object):
         if timeout:
             self.error("Timeout. Conversion did not complete within %d seconds. Process terminated" % self.sequence.timeout_sec)
         elif self.process.returncode:
-            self.error("Failure. Process return code %08x" % self.process.returncode)
+            self.error("Failure. Process return code %08x" % (self.process.returncode & 0xffffffff))
 
         self.out_file.close()
 
