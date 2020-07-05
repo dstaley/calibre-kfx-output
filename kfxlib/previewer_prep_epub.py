@@ -535,27 +535,28 @@ class EpubPrep(object):
                             label = label_text.text
 
                     content = nav_point.find("{*}content")
-                    orig_src = content.get("src")
-                    src = urlabspath(orig_src, working_dir=base_dir)
-                    tf, tid, sort_key = self.ref_file_id_and_key(src)
+                    if content is not None:
+                        orig_src = content.get("src")
+                        src = urlabspath(orig_src, working_dir=base_dir)
+                        tf, tid, sort_key = self.ref_file_id_and_key(src)
 
-                    if sort_key is None:
-                        self.log.info("Removed NCX TOC reference to non-existent target: %s" % orig_src)
-                        self.delete_navpoint(nav_point)
-                        fixed = True
+                        if sort_key is None:
+                            self.log.info("Removed NCX TOC reference to non-existent target: %s" % orig_src)
+                            self.delete_navpoint(nav_point)
+                            fixed = True
 
-                    elif tid and (label == "Midpoint"):
-                        self.log.info("Removed NCX TOC reference to 'Midpoint': %s" % orig_src)
-                        self.delete_navpoint(nav_point)
-                        fixed = True
+                        elif tid and (label == "Midpoint"):
+                            self.log.info("Removed NCX TOC reference to 'Midpoint': %s" % orig_src)
+                            self.delete_navpoint(nav_point)
+                            fixed = True
 
-                    elif tid and (tf.body_id == tid):
-                        fixed_src = content.get("src").rpartition("#")[0]
-                        self.log.info("Adjusted NCX TOC reference to body element id: %s --> %s" % (orig_src, fixed_src))
-                        content.set("src", fixed_src)
-                        fixed = True
+                        elif tid and (tf.body_id == tid):
+                            fixed_src = content.get("src").rpartition("#")[0]
+                            self.log.info("Adjusted NCX TOC reference to body element id: %s --> %s" % (orig_src, fixed_src))
+                            content.set("src", fixed_src)
+                            fixed = True
 
-                    fixed = self.fix_src(content, "NCX TOC") or fixed
+                        fixed = self.fix_src(content, "NCX TOC") or fixed
 
         if FIX_NCX_PAGELIST:
             page_list = ncx.find("{*}pageList")

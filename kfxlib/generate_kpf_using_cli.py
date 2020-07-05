@@ -19,6 +19,8 @@ __license__ = "GPL v3"
 __copyright__ = "2020, John Howell <jhowell@acm.org>"
 
 
+MAX_CONVERSION_RETRIES = 5
+
 MAX_GUIDANCE = 100
 
 
@@ -30,14 +32,26 @@ class KPR_CLI(ConversionSequence):
         self.application = KindlePreviewer(self.log)
 
     def perform_conversion_sequence(self):
+        retry_count = 0
+        result, is_specific_error = self.perform_conversion_sequence_once()
+
+        while result.kpf_data is None and retry_count <= MAX_CONVERSION_RETRIES and not is_specific_error:
+            self.log.info("Unknown conversion error occurred -- Retrying")
+            retry_count += 1
+            result, is_specific_error = self.perform_conversion_sequence_once()
+
+        return result
+
+    def perform_conversion_sequence_once(self):
         self.out_dir = self.create_unique_dir()
         cli = KPR_CLI_Process(self)
         cli.run(self.in_file_name, self.out_dir)
 
         error_msg = cli.error_msg
-        log_data = cli.logs()
+        log_data = cli.logs
         guidance_entries = []
         kpf_data = None
+        is_specific_error = False
 
         summary_log_name = "Summary_Log.csv"
         summary_log_csv_file = os.path.join(self.out_dir, summary_log_name)
@@ -83,11 +97,12 @@ class KPR_CLI(ConversionSequence):
                                         field = dict(row)
                                         msg_type = field.pop("Type", "")
                                         description = field.pop("Description", "").strip()
-                                        msg = "%s: %s" % (msg_type, description)
+                                        msg = "%s %s" % (msg_type, description)
 
                                         if msg_type in {"Error", "ET Error"} and not have_error_msg:
                                             error_msg = description
                                             have_error_msg = True
+                                            is_specific_error = True
 
                                         guidance_lines = []
                                         guidance_lines.append(msg)
@@ -111,9 +126,11 @@ class KPR_CLI(ConversionSequence):
 
                             except Exception as e:
                                 error_msg = "Exception occurred processing log: %s" % repr(e)
+                                is_specific_error = True
 
                         else:
                             error_msg = "Log file is missing: %s" % conversion_log_file
+                            is_specific_error = True
 
                         break
 
@@ -125,7 +142,7 @@ class KPR_CLI(ConversionSequence):
 
         return ConversionResult(
                 kpf_data=kpf_data, error_msg=error_msg, logs=self.combine_logs(log_data, error_msg),
-                guidance="\n".join(truncate_list(guidance_entries, MAX_GUIDANCE)))
+                guidance="\n".join(truncate_list(guidance_entries, MAX_GUIDANCE))), is_specific_error
 
     def fix_output_filename(self, filename):
 

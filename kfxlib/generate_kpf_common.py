@@ -129,6 +129,7 @@ class KindlePreviewer(ConversionApplication):
             32604616: "3.39.0",
             32605640: "3.39.1",
             36847048: "3.40.0",
+            36847560: "3.41.0",
             }
 
     if IS_MACOS:
@@ -223,8 +224,8 @@ class ConversionProcess(object):
         self.log = sequence.log
         self.application = sequence.application
         self.timeout_sec = sequence.timeout_sec
-        self.out_file = None
-        self.error_msg = None
+        self.out_file = self.output = self.error_msg = self.returncode = None
+        self.logs = collections.OrderedDict()
 
     def run(self):
         if self.start():
@@ -296,11 +297,16 @@ class ConversionProcess(object):
             self.wincon.free_alternate_console_buffer()
 
         if timeout:
-            self.error("Timeout. Conversion did not complete within %d seconds. Process terminated" % self.sequence.timeout_sec)
-        elif self.process.returncode:
-            self.error("Failure. Process return code %08x" % (self.process.returncode & 0xffffffff))
+            self.error("Process Failure: %s did not complete within %d seconds" % (self.function_name, self.sequence.timeout_sec))
+            self.returncode = -1
+        else:
+            self.returncode = self.process.returncode & 0xffffffff
+            if self.returncode:
+                self.error("Process Failure: %s return code %08x" % (self.function_name, self.returncode))
 
         self.out_file.close()
+        self.logs[os.path.basename(self.out_file_name)] = self.output = file_read_utf8(self.out_file_name)
+        self.logs["%s environment" % self.function_name] = self.execution_environment_log()
 
     def close_out_file(self):
         if self.out_file is not None:
@@ -313,16 +319,6 @@ class ConversionProcess(object):
     def error(self, msg):
         self.error_msg = msg
         self.write_out_file("\n%s\n" % msg)
-
-    def logs(self):
-        log_data = collections.OrderedDict()
-        log_data[os.path.basename(self.out_file_name)] = self.output()
-        log_data["%s environment" % self.function_name] = self.execution_environment_log()
-        return log_data
-
-    def output(self):
-        self.out_file.close()
-        return file_read_utf8(self.out_file_name)
 
     def get_clean_environment(self):
         self.env = {}
@@ -443,10 +439,8 @@ class ConversionSequence(object):
         return "\n".join(logs)
 
     def cleanup_temp_files(self):
-        try:
-            shutil.rmtree(self.data_dir)
-        except Exception:
-            pass
+        if os.path.isdir(self.data_dir):
+            shutil.rmtree(self.data_dir, ignore_errors=True)
 
 
 class ConversionResult(object):

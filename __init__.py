@@ -37,7 +37,7 @@ class KFXOutput(OutputFormatPlugin):
     name = "KFX Output"
     author = "jhowell"
     file_type = "kfx"
-    version = (1, 42, 0)
+    version = (1, 43, 0)
     minimum_calibre_version = (2, 0, 0)                 # required for apsw with sqlite >= 3.8.2
     supported_platforms = ["windows", "osx"]
 

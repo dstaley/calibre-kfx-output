@@ -66,8 +66,8 @@ class PluginWidget(Widget):
             db = get_gui().current_db
 
         if db is not None:
-            for l in db.custom_column_label_map:
-                labels.add("#" + l)
+            for lbl in db.custom_column_label_map:
+                labels.add("#" + lbl)
 
         for cc in [AUTO_PAGES] + sorted(list(labels)):
             self.opt_number_of_pages_field.addItem(cc)

@@ -31,7 +31,7 @@ if IS_PYTHON2:
 
     from urllib import (quote, quote_plus, unquote, urlencode)
     from urllib2 import (build_opener, HTTPCookieProcessor, HTTPError, HTTPHandler, HTTPSHandler, HTTPRedirectHandler, Request)
-    from urlparse import (parse_qs, urljoin, urlparse)
+    from urlparse import (parse_qs, urljoin, urlparse, urlunparse)
 
     class Object(object):
         pass
@@ -54,6 +54,7 @@ if IS_PYTHON2:
     parse.urlencode = urlencode
     parse.urljoin = urljoin
     parse.urlparse = urlparse
+    parse.urlunparse = urlunparse
 
     request = Object()
     request.build_opener = build_opener

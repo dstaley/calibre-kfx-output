@@ -298,16 +298,16 @@ def list_truncated(a_iter, max_allowed=10):
     return ", ".join(truncate_list(sorted(unicode_list(a_iter)), max_allowed))
 
 
-def unicode_list(l):
-    return [str(s) for s in l]
+def unicode_list(lst):
+    return [str(s) for s in lst]
 
 
-def truncate_list(l, max_allowed=10):
-    return l if len(l) <= max_allowed else l[:max_allowed] + ["... (%d total)" % len(l)]
+def truncate_list(lst, max_allowed=10):
+    return lst if len(lst) <= max_allowed else lst[:max_allowed] + ["... (%d total)" % len(lst)]
 
 
-def remove_duplicates(l):
-    return list(collections.OrderedDict.fromkeys(l))
+def remove_duplicates(lst):
+    return list(collections.OrderedDict.fromkeys(lst))
 
 
 def bytes_to_separated_hex(data, sep=" "):

@@ -152,7 +152,9 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
         conversion_name = options[0]
         flags |= set(options[1:])
 
-        if conversion_name == "KPR_CLI" and intype in [".epub", ".opf", ".doc", ".docx", ".mobi"]:
+        ALL_TYPES = [".doc", ".docx", ".epub", ".mobi", ".opf"]
+
+        if conversion_name == "KPR_CLI" and intype in ALL_TYPES:
             conversion_sequence = KPR_CLI()
         else:
             return ConversionResult(error_msg="Cannot generate KPF from %s file using %s" % (intype, conversion_name))

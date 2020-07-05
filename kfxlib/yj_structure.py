@@ -907,7 +907,8 @@ class BookStructure(object):
             else:
                 new_fragments.append(fragment)
 
-                if fragment.ftype not in CONTAINER_FRAGMENT_TYPES and fragment.fid != fragment.ftype:
+                if (fragment.ftype not in CONTAINER_FRAGMENT_TYPES and fragment.fid != fragment.ftype and
+                        fragment.fid not in entity_ids):
                     entity_ids.append(fragment.fid)
 
         if entity_dependencies is None:
