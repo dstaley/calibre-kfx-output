@@ -1,12 +1,12 @@
 from __future__ import (unicode_literals, division, absolute_import, print_function)
 
 import copy
-import hashlib
 
 from .ion import (IonBLOB, IonAnnotation, IonStruct, IS)
 from .ion_binary import (IonBinary)
+from .message_logging import log
 from .utilities import (
-        bytes_to_separated_hex, json_deserialize, json_serialize_compact, type_name,
+        bytes_to_separated_hex, json_deserialize, json_serialize_compact, sha1, type_name,
         Deserializer, Serializer)
 from .yj_container import (
         CONTAINER_FORMAT_KFX_MAIN, CONTAINER_FORMAT_KFX_METADATA, CONTAINER_FORMAT_KFX_ATTACHABLE, YJContainer, YJFragment,
@@ -56,8 +56,8 @@ class KfxContainer(YJContainer):
     MIN_LENGTH = 18
     DEFAULT_CHUNK_SIZE = 4096
 
-    def __init__(self, log, symtab, datafile=None, fragments=None):
-        YJContainer.__init__(self, log, symtab, datafile=datafile, fragments=fragments)
+    def __init__(self, symtab, datafile=None, fragments=None):
+        YJContainer.__init__(self, symtab, datafile=datafile, fragments=fragments)
 
     def deserialize(self, ignore_drm=False):
         self.doc_symbols = None
@@ -84,7 +84,7 @@ class KfxContainer(YJContainer):
             raise Exception("Container signature is incorrect (%s)" % bytes_to_separated_hex(signature))
 
         if version not in KfxContainer.ALLOWED_VERSIONS:
-            self.log.error("Container version is incorrect (%d)" % version)
+            log.error("Container version is incorrect (%d)" % version)
 
         if header_len < KfxContainer.MIN_LENGTH:
             raise Exception("Container header is too short (%d)" % header_len)
@@ -93,28 +93,28 @@ class KfxContainer(YJContainer):
         container_info_length = header.unpack(b"<L")
 
         container_info_data = data[container_info_offset:container_info_offset + container_info_length]
-        container_info = IonBinary(self.log, self.symtab).deserialize_single_value(container_info_data)
+        container_info = IonBinary(self.symtab).deserialize_single_value(container_info_data)
         if DEBUG:
-            self.log.debug("container info:\n%s" % repr(container_info))
+            log.debug("container info:\n%s" % repr(container_info))
 
         container_id = container_info.pop("$409")
 
         compression_type = container_info.pop("$410", DEFAULT_COMPRESSION_TYPE)
         if compression_type != DEFAULT_COMPRESSION_TYPE:
-            self.log.error("Unexpected bcComprType in container %s info: %s" % (container_id, repr(compression_type)))
+            log.error("Unexpected bcComprType in container %s info: %s" % (container_id, repr(compression_type)))
 
         drm_scheme = container_info.pop("$411", DEFAULT_DRM_SCHEME)
         if drm_scheme != DEFAULT_DRM_SCHEME:
-            self.log.error("Unexpected bcDRMScheme in container %s info: %s" % (container_id, repr(drm_scheme)))
+            log.error("Unexpected bcDRMScheme in container %s info: %s" % (container_id, repr(drm_scheme)))
 
         doc_symbol_offset = container_info.pop("$415", None)
         doc_symbol_length = container_info.pop("$416", 0)
         if doc_symbol_length:
             doc_symbol_data = data[doc_symbol_offset:doc_symbol_offset + doc_symbol_length]
-            self.doc_symbols = IonBinary(self.log, self.symtab).deserialize_annotated_value(
+            self.doc_symbols = IonBinary(self.symtab).deserialize_annotated_value(
                     doc_symbol_data, expect_annotation="$ion_symbol_table")
             if DEBUG:
-                self.log.debug("Document symbols:\n%s" % repr(self.doc_symbols))
+                log.debug("Document symbols:\n%s" % repr(self.doc_symbols))
 
             for sym_import in self.doc_symbols.value["imports"]:
                 if "max_id" in sym_import:
@@ -124,24 +124,24 @@ class KfxContainer(YJContainer):
 
         chunk_size = container_info.pop("$412", 0)
         if chunk_size != KfxContainer.DEFAULT_CHUNK_SIZE:
-            self.log.warning("Unexpected bcChunkSize in container %s info: %d" % (chunk_size, container_id))
+            log.warning("Unexpected bcChunkSize in container %s info: %d" % (chunk_size, container_id))
 
         if version > 1:
             format_capabilities_offset = container_info.pop("$594", None)
             format_capabilities_length = container_info.pop("$595", 0)
             if format_capabilities_length:
                 format_capabilities_data = data[format_capabilities_offset:format_capabilities_offset + format_capabilities_length]
-                self.format_capabilities = IonBinary(self.log, self.symtab).deserialize_annotated_value(
+                self.format_capabilities = IonBinary(self.symtab).deserialize_annotated_value(
                     format_capabilities_data, expect_annotation="$593")
                 if DEBUG:
-                    self.log.debug("Format capabilities:\n%s" % repr(self.format_capabilities))
+                    log.debug("Format capabilities:\n%s" % repr(self.format_capabilities))
 
         type_idnums = set()
         index_table_offset = container_info.pop("$413", None)
         index_table_length = container_info.pop("$414", 0)
 
         if len(container_info):
-            self.log.error("container_info has extra data: %s" % repr(container_info))
+            log.error("container_info has extra data: %s" % repr(container_info))
 
         payload_sha1 = bytes_to_hex(sha1(data[header_len:]))
 
@@ -156,7 +156,7 @@ class KfxContainer(YJContainer):
         try:
             kfxgen_info = json_deserialize(kfxgen_info_json)
         except Exception:
-            self.log.info("Exception decoding json: %s" % kfxgen_info_json)
+            log.info("Exception decoding json: %s" % kfxgen_info_json)
             raise
 
         for info in kfxgen_info:
@@ -171,18 +171,18 @@ class KfxContainer(YJContainer):
 
             elif key == "kfxgen_payload_sha1":
                 if value != payload_sha1:
-                    self.log.error("Incorrect kfxgen_payload_sha1 in container %s" % container_id)
-                    self.log.info("value=%s sha1=%s" % (value, payload_sha1))
+                    log.error("Incorrect kfxgen_payload_sha1 in container %s" % container_id)
+                    log.info("value=%s sha1=%s" % (value, payload_sha1))
 
             elif key == "kfxgen_acr":
                 if value != container_id:
-                    self.log.error("Unexpected kfxgen_acr in container %s: %s" % (container_id, value))
+                    log.error("Unexpected kfxgen_acr in container %s: %s" % (container_id, value))
 
             else:
-                self.log.error("kfxgen_info has unknown key: %s = %s" % (key, value))
+                log.error("kfxgen_info has unknown key: %s = %s" % (key, value))
 
             if len(info):
-                self.log.error("kfxgen_info has extra data: %s" % repr(self.log, info))
+                log.error("kfxgen_info has extra data: %s" % repr(info))
 
         if index_table_length:
             entity_table = Deserializer(data[index_table_offset:index_table_offset + index_table_length])
@@ -197,14 +197,14 @@ class KfxContainer(YJContainer):
 
                 entity_start = header_len + entity_offset
                 if DEBUG:
-                    self.log.debug("Container entity: id=%d type=%d len=%d" % (id_idnum, type_idnum, entity_len))
+                    log.debug("Container entity: id=%d type=%d len=%d" % (id_idnum, type_idnum, entity_len))
 
                 if entity_start + entity_len > len(data):
                     raise Exception("Container %s (%d bytes) is not large enough for entity end (offset %d)" % (
                                 container_id, len(data), entity_start + entity_len))
 
                 self.entities.append(
-                        KfxContainerEntity(self.log, self.symtab, id_idnum, type_idnum,
+                        KfxContainerEntity(self.symtab, id_idnum, type_idnum,
                                            serialized_data=data[entity_start:entity_start + entity_len]))
 
         if type_idnums & KFX_MAIN_CONTAINER_FRAGMENT_IDNUMS:
@@ -214,7 +214,7 @@ class KfxContainer(YJContainer):
         elif type_idnums & KFX_ATTACHABLE_CONTAINER_FRAGMENT_IDNUMS:
             container_format = CONTAINER_FORMAT_KFX_ATTACHABLE
         else:
-            self.log.error("Cannot determine KFX container type of %s" % container_id)
+            log.error("Cannot determine KFX container type of %s" % container_id)
             container_format = "KFX unknown"
 
         self.container_info = IonAnnotation([IS("$270")], IonStruct(
@@ -275,15 +275,16 @@ class KfxContainer(YJContainer):
                 container_entity_map_cnt += 1
 
         if container_cnt != 1 or format_capabilities_cnt > 1 or ion_symbol_table_cnt != 1 or container_entity_map_cnt != 1:
-            self.log.error("Missing/extra fragments required to build KFX container: "
-                           "container=%d format_capabilities=%d ion_symbol_table=%d container_entity_map=%d" % (
-                                container_cnt, format_capabilities_cnt, ion_symbol_table_cnt, container_entity_map_cnt))
+            log.error(
+                "Missing/extra fragments required to build KFX container: "
+                "container=%d format_capabilities=%d ion_symbol_table=%d container_entity_map=%d" % (
+                    container_cnt, format_capabilities_cnt, ion_symbol_table_cnt, container_entity_map_cnt))
 
         entities = []
         for fragment in self.fragments:
             if (fragment.ftype not in CONTAINER_FRAGMENT_TYPES) or (fragment.ftype == "$419"):
                 entities.append(KfxContainerEntity(
-                        self.log, self.symtab,
+                        self.symtab,
                         id_idnum=self.symtab.get_id(IS("$348") if fragment.is_single() else fragment.fid),
                         type_idnum=self.symtab.get_id(fragment.ftype), value=fragment.value))
 
@@ -317,7 +318,7 @@ class KfxContainer(YJContainer):
         container.append(entity_table.serialize())
 
         if doc_symbols is not None:
-            doc_symbol_data = IonBinary(self.log, self.symtab).serialize_single_value(doc_symbols)
+            doc_symbol_data = IonBinary(self.symtab).serialize_single_value(doc_symbols)
         else:
             doc_symbol_data = b""
 
@@ -328,7 +329,7 @@ class KfxContainer(YJContainer):
         container_info[IS("$412")] = KfxContainer.DEFAULT_CHUNK_SIZE
 
         if format_capabilities is not None:
-            format_capabilities_data = IonBinary(self.log, self.symtab).serialize_single_value(format_capabilities)
+            format_capabilities_data = IonBinary(self.symtab).serialize_single_value(format_capabilities)
         else:
             format_capabilities_data = b""
 
@@ -337,7 +338,7 @@ class KfxContainer(YJContainer):
             container_info[IS("$595")] = len(format_capabilities_data)
             container.append(format_capabilities_data)
 
-        container_info_data = IonBinary(self.log, self.symtab).serialize_single_value(container_info)
+        container_info_data = IonBinary(self.symtab).serialize_single_value(container_info)
         container.repack(container_info_length_pack, len(container_info_data))
         container.repack(container_info_offset_pack, len(container))
         container.append(container_info_data)
@@ -364,8 +365,7 @@ class KfxContainerEntity(object):
     ALLOWED_VERSIONS = {1}
     MIN_LENGTH = 10
 
-    def __init__(self, log, symtab, id_idnum=None, type_idnum=None, value=None, serialized_data=None):
-        self.log = log
+    def __init__(self, symtab, id_idnum=None, type_idnum=None, value=None, serialized_data=None):
         self.symtab = symtab
         self.id_idnum = id_idnum
         self.type_idnum = type_idnum
@@ -385,23 +385,23 @@ class KfxContainerEntity(object):
             raise Exception("Container entity signature is incorrect (%s)" % bytes_to_separated_hex(signature))
 
         if version not in KfxContainerEntity.ALLOWED_VERSIONS:
-            self.log.error("Container entity version is incorrect (%d)" % version)
+            log.error("Container entity version is incorrect (%d)" % version)
 
         if header_len < KfxContainerEntity.MIN_LENGTH:
             raise Exception("Container entity header is too short (%d)" % header_len)
 
         self.header = data[:header_len]
 
-        entity_info = IonBinary(self.log, self.symtab).deserialize_single_value(cont_entity.extract(upto=header_len))
+        entity_info = IonBinary(self.symtab).deserialize_single_value(cont_entity.extract(upto=header_len))
         compression_type = entity_info.pop("$410", DEFAULT_COMPRESSION_TYPE)
         drm_scheme = entity_info.pop("$411", DEFAULT_DRM_SCHEME)
 
         if compression_type != DEFAULT_COMPRESSION_TYPE:
-            self.log.error("Container entity %s has unexpected bcComprType: %s" % (
+            log.error("Container entity %s has unexpected bcComprType: %s" % (
                         repr(self), repr(compression_type)))
 
         if drm_scheme != DEFAULT_DRM_SCHEME:
-            self.log.error("Container entity %s has unexpected bcDRMScheme: %s" % (
+            log.error("Container entity %s has unexpected bcDRMScheme: %s" % (
                         repr(self), repr(drm_scheme)))
 
         if len(entity_info):
@@ -416,14 +416,14 @@ class KfxContainerEntity(object):
         if ftype in RAW_FRAGMENT_TYPES:
             self.value = IonBLOB(entity_data)
         else:
-            self.value = IonBinary(self.log, self.symtab).deserialize_single_value(entity_data)
+            self.value = IonBinary(self.symtab).deserialize_single_value(entity_data)
 
         if isinstance(self.value, IonAnnotation):
             if self.value.is_annotation(ftype) and fid == "$348":
                 fid = ftype
                 self.value = self.value.value
             else:
-                self.log.error("Entity %s has IonAnnotation as value: %s" % (repr(self), repr(self.value)))
+                log.error("Entity %s has IonAnnotation as value: %s" % (repr(self), repr(self.value)))
 
         return YJFragment(fid=fid if fid != "$348" else None, ftype=ftype, value=self.value)
 
@@ -436,7 +436,7 @@ class KfxContainerEntity(object):
         entity_info = IonStruct()
         entity_info[IS("$410")] = DEFAULT_COMPRESSION_TYPE
         entity_info[IS("$411")] = DEFAULT_DRM_SCHEME
-        entity.append(IonBinary(self.log, self.symtab).serialize_single_value(entity_info))
+        entity.append(IonBinary(self.symtab).serialize_single_value(entity_info))
 
         entity.repack(header_len_pack, len(entity))
 
@@ -447,13 +447,9 @@ class KfxContainerEntity(object):
             else:
                 raise Exception("KfxContainerEntity %s must be IonBLOB, found %s" % (ftype, type_name(self.value)))
         else:
-            entity.append(IonBinary(self.log, self.symtab).serialize_single_value(self.value))
+            entity.append(IonBinary(self.symtab).serialize_single_value(self.value))
 
         return entity.serialize()
 
     def __repr__(self):
         return "$%d/$%d" % (self.type_idnum, self.id_idnum)
-
-
-def sha1(data):
-    return hashlib.sha1(data).digest()

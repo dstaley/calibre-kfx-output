@@ -161,6 +161,7 @@ KNOWN_FEATURES = {
             783,
             785,
             786,
+            787,
             },
         },
 
@@ -266,6 +267,8 @@ KNOWN_FEATURES = {
         "yj_pdf_support": {1},
 
         "yj_publisher_panels": {2},
+
+        "yj_rotated_pages": {1},
 
         "yj_ruby": {1},
 
@@ -395,6 +398,10 @@ KNOWN_METADATA = {
             "1.38.37.0",
             "1.39.30.0",
             "1.40.6.0",
+            "1.41.10.0",
+            "1.42.2.0",
+            "1.42.6.0",
+            "1.43.0.0",
 
             "3.0.0",
             "3.1.0",
@@ -445,6 +452,9 @@ KNOWN_METADATA = {
             "3.39.1",
             "3.40.0",
             "3.41.0",
+            "3.42.0",
+            "3.43.0",
+            "3.44.0",
             }
 
     },
@@ -544,6 +554,7 @@ KNOWN_METADATA = {
 
 
 KNOWN_AUXILIARY_METADATA = {
+    "ANCHOR_REFERRED_BY_CONTAINERS": ANY,
     "auxData_resource_list": ANY,
     "base_line": ANY,
     "button_type": {1},
@@ -563,7 +574,7 @@ KNOWN_AUXILIARY_METADATA = {
     "most-common-computed-style": ANY,
     "namespace": {"KindleConversion"},
     "num-dual-covers-removed": {1},
-    "page_rotation": {0},
+    "page_rotation": {0, 1},
     "plugin_group_list": ANY,
     "resizable_plugin": TF,
     "resource_stream": ANY,

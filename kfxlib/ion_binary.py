@@ -9,6 +9,7 @@ from .ion import (
         IonTimestampTZ, ION_TIMESTAMP_Y, ION_TIMESTAMP_YM, ION_TIMESTAMP_YMD, ION_TIMESTAMP_YMDHM,
         ION_TIMESTAMP_YMDHMS, ION_TIMESTAMP_YMDHMSF)
 from .ion_text import IonSerial
+from .message_logging import log
 from .utilities import (bytes_to_separated_hex, Deserializer, Serializer)
 
 
@@ -52,7 +53,7 @@ class IonBinary(IonSerial):
 
     def deserialize_multiple_values_(self, data, import_symbols, with_offsets):
         if DEBUG:
-            self.log.debug("decoding: %s" % bytes_to_separated_hex(data[:1000]))
+            log.debug("decoding: %s" % bytes_to_separated_hex(data[:1000]))
 
         serial = Deserializer(data)
         self.import_symbols = import_symbols
@@ -105,13 +106,13 @@ class IonBinary(IonSerial):
         signature = descriptor >> 4
         flag = descriptor & 0x0f
         if DEBUG:
-            self.log.debug("IonBinary 0x%02x: signature=%d flag=%d data=%s" % (
+            log.debug("IonBinary 0x%02x: signature=%d flag=%d data=%s" % (
                     descriptor, signature, flag, bytes_to_separated_hex(serial.extract(advance=False)[:16])))
 
         extract_data, deserializer, name = IonBinary.VALUE_DESERIALIZERS[signature]
 
         if flag == IonBinary.NULL_FLAG and signature != IonBinary.NULL_VALUE_SIGNATURE:
-            self.log.error("IonBinary: Deserialized null of type %s" % name)
+            log.error("IonBinary: Deserialized null of type %s" % name)
             extract_data, deserializer, name = IonBinary.VALUE_DESERIALIZERS[IonBinary.NULL_VALUE_SIGNATURE]
 
         if extract_data:
@@ -157,10 +158,10 @@ class IonBinary(IonSerial):
 
     def deserialize_negint_value(self, data):
         if len(data) == 0:
-            self.log.error("BinaryIonNegInt has no data")
+            log.error("BinaryIonNegInt has no data")
 
         if bytes_indexed(data, 0) == 0:
-            self.log.error("BinaryIonNegInt data starts with 0x00: %s" % bytes_to_separated_hex(data))
+            log.error("BinaryIonNegInt data starts with 0x00: %s" % bytes_to_separated_hex(data))
 
         return -deserialize_unsignedint(data)
 
@@ -256,13 +257,13 @@ class IonBinary(IonSerial):
                 microsecond = None
             else:
                 if fraction_exponent < -6 or fraction_exponent > -1:
-                    self.log.error("Unexpected IonTimestamp fraction exponent %d coefficient %d: %s" % (
+                    log.error("Unexpected IonTimestamp fraction exponent %d coefficient %d: %s" % (
                             fraction_exponent, fraction_coefficient, bytes_to_separated_hex(data)))
 
                 microsecond = (fraction_coefficient * 1000000) // int(10 ** -fraction_exponent)
 
                 if microsecond < 0 or microsecond > 999999:
-                    self.log.error("Incorrect IonTimestamp fraction %d usec: %s" % (microsecond, bytes_to_separated_hex(data)))
+                    log.error("Incorrect IonTimestamp fraction %d usec: %s" % (microsecond, bytes_to_separated_hex(data)))
                     microsecond = None
                     fraction_exponent = 0
         else:
@@ -318,11 +319,11 @@ class IonBinary(IonSerial):
     CLOB_VALUE_SIGNATURE = 9
 
     def serialize_clob_value(self, value):
-        self.log.error("Serialize CLOB")
+        log.error("Serialize CLOB")
         return (IonBinary.CLOB_VALUE_SIGNATURE, bytes(value))
 
     def deserialize_clob_value(self, data):
-        self.log.error("Deserialize CLOB")
+        log.error("Deserialize CLOB")
         return IonCLOB(data)
 
     BLOB_VALUE_SIGNATURE = 10
@@ -374,7 +375,7 @@ class IonBinary(IonSerial):
 
     def deserialize_struct_value(self, flag, serial):
         if flag == IonBinary.SORTED_STRUCT_FLAG:
-            self.log.error("BinaryIonStruct: Sorted IonStruct encountered")
+            log.error("BinaryIonStruct: Sorted IonStruct encountered")
             flag = IonBinary.VARIABLE_LEN_FLAG
 
         serial2 = Deserializer(serial.extract(deserialize_vluint(serial) if flag == IonBinary.VARIABLE_LEN_FLAG else flag))
@@ -385,11 +386,11 @@ class IonBinary(IonSerial):
 
             value = self.deserialize_value(serial2)
             if DEBUG:
-                self.log.debug("IonStruct: %s = %s" % (repr(id_symbol), repr(value)))
+                log.debug("IonStruct: %s = %s" % (repr(id_symbol), repr(value)))
 
             if not isinstance(value, IonNop):
                 if id_symbol in result:
-                    self.log.error("BinaryIonStruct: Duplicate field name %s" % id_symbol)
+                    log.error("BinaryIonStruct: Duplicate field name %s" % id_symbol)
 
                 result[id_symbol] = value
 
@@ -531,7 +532,7 @@ def deserialize_vluint(serial):
         i = serial.unpack("B")
         value = (value << 7) | (i & 0x7f)
 
-        if i >= 0x80:
+        if i & 0x80:
             return value
 
         if value == 0:

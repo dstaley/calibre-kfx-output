@@ -7,7 +7,6 @@ from .utilities import (
 import collections
 import io
 from lxml import etree
-import hashlib
 from PIL import Image
 import posixpath
 import re
@@ -18,6 +17,9 @@ try:
     import calibre.utils.soupparser as soupparser
 except ImportError:
     import lxml.html.soupparser as soupparser
+
+from .message_logging import log
+from .utilities import sha1
 
 from .python_transition import (IS_PYTHON2, bytes_, bytes_indexed)
 if IS_PYTHON2:
@@ -120,7 +122,7 @@ class IDPFAlgorithm(object):
 
     @staticmethod
     def key_of_indent(identifier):
-        return hashlib.sha1(re.sub("[ \n\r\t]", "", identifier).encode("utf-8")).digest()
+        return sha1(re.sub("[ \n\r\t]", "", identifier).encode("utf-8"))
 
 
 MAX_OFS_DATA_LEN = max(AdobeAlgorithm.ofs_data_len, IDPFAlgorithm.ofs_data_len)
@@ -128,8 +130,7 @@ MAX_OFS_KEY_LEN = max(AdobeAlgorithm.ofs_key_len, IDPFAlgorithm.ofs_key_len)
 
 
 class EpubPrep(object):
-    def __init__(self, log, infile):
-        self.log = log
+    def __init__(self, infile):
         self.infile = infile
 
         self.xml_parser = etree.XMLParser(encoding="utf-8", recover=True)
@@ -151,7 +152,7 @@ class EpubPrep(object):
                 self.read_opf(self.opf_file)
             except Exception as e:
                 traceback.print_exc()
-                self.log.warning("Failed to read EPUB OPF %s: %s" % (self.opf_file.filename, repr(e)))
+                log.warning("Failed to read EPUB OPF %s: %s" % (self.opf_file.filename, repr(e)))
 
         if self.is_dictionary:
             self.full_book_type = "dictionary"
@@ -163,7 +164,7 @@ class EpubPrep(object):
             self.full_book_type = "book"
 
     def prepare(self, outfile, conversion_application, sequence_name):
-        self.log.info("Preparing %s %s for conversion" % (self.full_book_type, quote_name(self.infile)))
+        log.info("Preparing %s %s for conversion" % (self.full_book_type, quote_name(self.infile)))
 
         self.prevent_self_closed_divs = (sequence_name == "EpubAdapter")
 
@@ -187,17 +188,17 @@ class EpubPrep(object):
                         if f.is_ncx:
                             self.get_ncx_pages(f)
                         elif f.ext == "ncx" or f.mimetype == "application/x-dtbncx+xml":
-                            self.log.warning("Ignoring unlinked EPUB NCX: %s" % f.filename)
+                            log.warning("Ignoring unlinked EPUB NCX: %s" % f.filename)
 
                     elif page_type == 2:
                         if f.is_page_map:
                             self.get_page_map_pages(f)
                         elif f.name == "page-map.xml" or f.mimetype == "application/oebps-page-map+xml":
-                            self.log.warning("Ignoring unlinked EPUB page-map: %s" % f.filename)
+                            log.warning("Ignoring unlinked EPUB page-map: %s" % f.filename)
 
                 except Exception as e:
                     traceback.print_exc()
-                    self.log.warning("Failed to process EPUB %s: %s" % (f.filename, repr(e)))
+                    log.warning("Failed to process EPUB %s: %s" % (f.filename, repr(e)))
 
             if self.pages:
                 break
@@ -208,7 +209,7 @@ class EpubPrep(object):
                     self.prepare_xhtml_pt1(f)
                 except Exception as e:
                     traceback.print_exc()
-                    self.log.warning("Failed to read EPUB content %s: %s" % (f.filename, repr(e)))
+                    log.warning("Failed to read EPUB content %s: %s" % (f.filename, repr(e)))
 
         for f in self.data_files.values():
             if self.opf_identifiers and f.ext in ["otf", "ttf", "woff", "eot", "dfont"]:
@@ -216,28 +217,28 @@ class EpubPrep(object):
                     self.deobfuscate_font(f)
                 except Exception as e:
                     traceback.print_exc()
-                    self.log.warning("Failed to de-obfuscate EPUB font %s: %s" % (f.filename, repr(e)))
+                    log.warning("Failed to de-obfuscate EPUB font %s: %s" % (f.filename, repr(e)))
 
             if f.ext in ["htm", "html", "xhtml"] or f.mimetype == "application/xhtml+xml":
                 try:
                     self.prepare_xhtml_pt2(f)
                 except Exception as e:
                     traceback.print_exc()
-                    self.log.warning("Failed to prepare EPUB content %s: %s" % (f.filename, repr(e)))
+                    log.warning("Failed to prepare EPUB content %s: %s" % (f.filename, repr(e)))
 
             if f.ext == "css" or f.mimetype == "text/css":
                 try:
                     self.prepare_css(f)
                 except Exception as e:
                     traceback.print_exc()
-                    self.log.warning("Failed to prepare EPUB CSS %s: %s" % (f.filename, repr(e)))
+                    log.warning("Failed to prepare EPUB CSS %s: %s" % (f.filename, repr(e)))
 
             if self.fix_gif and (f.ext == "gif" or f.mimetype == "image/gif"):
                 try:
                     self.prepare_gif(f)
                 except Exception as e:
                     traceback.print_exc()
-                    self.log.warning("Failed to prepare EPUB GIF %s: %s" % (f.filename, repr(e)))
+                    log.warning("Failed to prepare EPUB GIF %s: %s" % (f.filename, repr(e)))
 
         self.clean_pages()
 
@@ -246,7 +247,7 @@ class EpubPrep(object):
                 self.prepare_opf(self.opf_file)
             except Exception as e:
                 traceback.print_exc()
-                self.log.warning("Failed to process EPUB OPF %s: %s" % (f.filename, repr(e)))
+                log.warning("Failed to process EPUB OPF %s: %s" % (f.filename, repr(e)))
 
         for f in self.data_files.values():
             try:
@@ -259,7 +260,7 @@ class EpubPrep(object):
 
             except Exception as e:
                 traceback.print_exc()
-                self.log.warning("Failed to prepare EPUB %s: %s" % (f.filename, repr(e)))
+                log.warning("Failed to prepare EPUB %s: %s" % (f.filename, repr(e)))
 
         for fn in ["META-INF/encryption.xml", "META-INF/rights.xml"]:
             self.data_files.pop(fn, None)
@@ -280,7 +281,7 @@ class EpubPrep(object):
         else:
             for f in self.data_files.values():
                 if f.ext == "opf":
-                    self.log.warning("Located EPUB OPF using fallback")
+                    log.warning("Located EPUB OPF using fallback")
 
                     if CONTAINER_FILENAME not in self.data_files:
                         xml_str = (
@@ -292,7 +293,7 @@ class EpubPrep(object):
 
                     return f
 
-        self.log.warning("Failed to locate EPUB OPF")
+        log.warning("Failed to locate EPUB OPF")
         return None
 
     def get_ncx_pages(self, f):
@@ -300,7 +301,7 @@ class EpubPrep(object):
         page_list = ncx.find("{*}pageList")
 
         if page_list is not None:
-            self.log.info("Found EPUB NCX pageList")
+            log.info("Found EPUB NCX pageList")
             base_dir = dirname(root_path(f.filename))
 
             for page_target in page_list.findall("{*}pageTarget"):
@@ -313,7 +314,7 @@ class EpubPrep(object):
                             (label_text.text or page_target.get("value"), urlabspath(content.get("src"), working_dir=base_dir)))
 
     def get_page_map_pages(self, f):
-        self.log.info("Found EPUB page-map")
+        log.info("Found EPUB page-map")
 
         base_dir = dirname(root_path(f.filename))
         page_map = etree.fromstring(f.data, parser=self.xml_parser)
@@ -328,7 +329,7 @@ class EpubPrep(object):
 
         for nav in body.findall(".//{*}nav"):
             if get_epub_type(nav) == "page-list":
-                self.log.info("Found EPUB nav page-list")
+                log.info("Found EPUB nav page-list")
                 for li in nav.findall(".//{*}li"):
                     anchor = li.find("{*}a")
                     if (anchor is not None) and anchor.text:
@@ -418,7 +419,7 @@ class EpubPrep(object):
                     if meta.get("name", "") == "cover":
                         cover_file = self.idmap.get(meta.get("content", None), None)
                         if cover_file and cover_file in self.data_files and not self.data_files[cover_file].mimetype.startswith("image/"):
-                            self.log.info("Removing meta cover '%s' of incorrect type '%s'" % (cover_file, self.data_files[cover_file].mimetype))
+                            log.info("Removing meta cover '%s' of incorrect type '%s'" % (cover_file, self.data_files[cover_file].mimetype))
                             meta.getparent().remove(meta)
                             fixed = True
 
@@ -427,7 +428,7 @@ class EpubPrep(object):
 
                 for lang in metadata.findall("{*}language"):
                     if lang.text.lower().partition(" ")[0] in ["und", "us"]:
-                        self.log.info("Changed EPUB language from '%s' to 'en'" % lang.text)
+                        log.info("Changed EPUB language from '%s' to 'en'" % lang.text)
                         lang.text = "en"
                         fixed = True
 
@@ -440,12 +441,12 @@ class EpubPrep(object):
                                 best_language_variant, best_language_count = language, count
 
                         if best_language_variant != lang.text:
-                            self.log.info("Changed EPUB language from '%s' to '%s'" % (lang.text, best_language_variant))
+                            log.info("Changed EPUB language from '%s' to '%s'" % (lang.text, best_language_variant))
                             lang.text = best_language_variant
                             fixed = True
 
                     if FIX_VERTICAL_CHINESE and lang.text.lower().startswith("zh") and self.is_vertical_rl:
-                        self.log.info("Changed EPUB language to allow vertical text conversion")
+                        log.info("Changed EPUB language to allow vertical text conversion")
                         lang.text = "ja-%s" % (lang.text.replace("-", "="))
                         fixed = True
 
@@ -456,7 +457,7 @@ class EpubPrep(object):
                         languages.append(lang.text)
 
                 if fix_language_order:
-                    self.log.info("Changed EPUB language order to 'en' first")
+                    log.info("Changed EPUB language order to 'en' first")
 
                     for lang in metadata.findall("{*}language"):
                         lang.text = languages.pop(0)
@@ -467,11 +468,11 @@ class EpubPrep(object):
                 for title in metadata.findall("{http://purl.org/dc/elements/1.1/}title"):
                     title_count += 1
                     if title_count > 1:
-                        self.log.info("Removed extra EPUB title '%s'" % title.text)
+                        log.info("Removed extra EPUB title '%s'" % title.text)
                         title.getparent().remove(title)
                         fixed = True
                     elif not title.text:
-                        self.log.info("Changed EPUB title from '%s' to 'Unknown'" % title.text)
+                        log.info("Changed EPUB title from '%s' to 'Unknown'" % title.text)
                         title.text = "Unknown"
                         fixed = True
 
@@ -482,7 +483,7 @@ class EpubPrep(object):
                     else:
                         title_text = "Unknown"
 
-                    self.log.info("Added EPUB title '%s'" % title_text)
+                    log.info("Added EPUB title '%s'" % title_text)
                     title = etree.SubElement(metadata, "{http://purl.org/dc/elements/1.1/}title")
                     title.text = title_text
                     fixed = True
@@ -507,7 +508,7 @@ class EpubPrep(object):
                 added += 1
 
             if added:
-                self.log.info("Adding %d page list entries to OPF guide" % added)
+                log.info("Adding %d page list entries to OPF guide" % added)
                 fixed = True
 
         if fixed:
@@ -541,18 +542,18 @@ class EpubPrep(object):
                         tf, tid, sort_key = self.ref_file_id_and_key(src)
 
                         if sort_key is None:
-                            self.log.info("Removed NCX TOC reference to non-existent target: %s" % orig_src)
+                            log.info("Removed NCX TOC reference to non-existent target: %s" % orig_src)
                             self.delete_navpoint(nav_point)
                             fixed = True
 
                         elif tid and (label == "Midpoint"):
-                            self.log.info("Removed NCX TOC reference to 'Midpoint': %s" % orig_src)
+                            log.info("Removed NCX TOC reference to 'Midpoint': %s" % orig_src)
                             self.delete_navpoint(nav_point)
                             fixed = True
 
                         elif tid and (tf.body_id == tid):
                             fixed_src = content.get("src").rpartition("#")[0]
-                            self.log.info("Adjusted NCX TOC reference to body element id: %s --> %s" % (orig_src, fixed_src))
+                            log.info("Adjusted NCX TOC reference to body element id: %s --> %s" % (orig_src, fixed_src))
                             content.set("src", fixed_src)
                             fixed = True
 
@@ -570,7 +571,7 @@ class EpubPrep(object):
                         src = content.get("src")
 
                         if src in page_urls:
-                            self.log.info("Removing duplicate NCX pageTarget: %s" % src)
+                            log.info("Removing duplicate NCX pageTarget: %s" % src)
                             page_list.remove(page_target)
                             fixed = True
                         else:
@@ -581,12 +582,12 @@ class EpubPrep(object):
                             label = (navlabel_text.text if navlabel_text is not None else "") or ""
 
                             if not is_page_label(label):
-                                self.log.info("Removing NCX pageTarget with incorrect or missing label: \"%s\"" % label)
+                                log.info("Removing NCX pageTarget with incorrect or missing label: \"%s\"" % label)
                                 page_list.remove(page_target)
                                 fixed = True
 
                             elif label in page_labels:
-                                self.log.info("Removing NCX pageTarget with duplicate label: \"%s\"" % label)
+                                log.info("Removing NCX pageTarget with duplicate label: \"%s\"" % label)
                                 page_list.remove(page_target)
                                 fixed = True
                             else:
@@ -607,7 +608,7 @@ class EpubPrep(object):
                 if get_epub_type(nav) == "landmarks":
                     parent = nav.getparent()
                     parent.remove(nav)
-                    self.log.info("Removed NAV landmarks")
+                    log.info("Removed NAV landmarks")
                     fixed = True
 
         if FIX_NAV_PAGE_LIST:
@@ -621,7 +622,7 @@ class EpubPrep(object):
                         if a is not None:
                             href = a.get("href")
                             if href in page_urls:
-                                self.log.info("Removing duplicate NAV page href: %s" % href)
+                                log.info("Removing duplicate NAV page href: %s" % href)
                                 li.getparent().remove(li)
                                 fixed = True
                             else:
@@ -630,11 +631,11 @@ class EpubPrep(object):
                                 if len(a) == 0:
                                     label = a.text or ""
                                     if not is_page_label(label):
-                                        self.log.info("Removing NAV page with missing or incorrect label: \"%s\"" % label)
+                                        log.info("Removing NAV page with missing or incorrect label: \"%s\"" % label)
                                         li.getparent().remove(li)
                                         fixed = True
                                     elif label in page_labels:
-                                        self.log.info("Removing NAV page with with duplicate label: \"%s\"" % label)
+                                        log.info("Removing NAV page with with duplicate label: \"%s\"" % label)
                                         li.getparent().remove(li)
                                         fixed = True
                                     else:
@@ -657,7 +658,7 @@ class EpubPrep(object):
             fixed = self.fix_href(page, "page-map", base_dir) or fixed
             href = page.get("href")
             if href in page_urls:
-                self.log.info("Removing page-map entry with duplicate target: %s" % href)
+                log.info("Removing page-map entry with duplicate target: %s" % href)
                 page_map.remove(page)
                 fixed = True
             else:
@@ -665,7 +666,7 @@ class EpubPrep(object):
 
                 name = page.get("name", "")
                 if not is_page_label(name):
-                    self.log.info("Removing page-map entry with missing or incorrect name: \"%s\"" % name)
+                    log.info("Removing page-map entry with missing or incorrect name: \"%s\"" % name)
                     page_map.remove(page)
                     fixed = True
 
@@ -747,7 +748,7 @@ class EpubPrep(object):
                 if self.deobfuscate(f, algorithm, identifier=identifier):
                     return
 
-        self.log.info("Failed to de-obfuscate EPUB font %s" % f.filename)
+        log.info("Failed to de-obfuscate EPUB font %s" % f.filename)
 
     def deobfuscate(self, f, algorithm, font_key=None, identifier=None):
         if font_key is None:
@@ -762,7 +763,7 @@ class EpubPrep(object):
             return False
 
         f.data = new_data
-        self.log.info("De-obfuscated EPUB %s font %s" % (font_file_ext(f.data), f.filename))
+        log.info("De-obfuscated EPUB %s font %s" % (font_file_ext(f.data), f.filename))
         return True
 
     def prepare_xhtml_pt1(self, f):
@@ -771,7 +772,7 @@ class EpubPrep(object):
 
             if new_data.startswith(b"\xef\xbb\xbf"):
                 new_data = new_data[3:]
-                self.log.info("Removed UTF-8 BOM from %s" % f.name)
+                log.info("Removed UTF-8 BOM from %s" % f.name)
 
             header = new_data[:1024].decode("utf-8", "ignore")
 
@@ -784,16 +785,16 @@ class EpubPrep(object):
 
                     break
             else:
-                self.log.info("Assuming UTF-8 encoding for %s" % f.name)
+                log.info("Assuming UTF-8 encoding for %s" % f.name)
                 enc = "utf-8"
 
             try:
                 new_text = new_data.decode("utf-8")
             except UnicodeDecodeError:
                 if enc == "utf-8":
-                    self.log.warning("Content failed to decode as UTF-8 in %s" % f.name)
+                    log.warning("Content failed to decode as UTF-8 in %s" % f.name)
                 else:
-                    self.log.info("Changed encoding from %s to UTF-8 in %s" % (enc.upper(), f.name))
+                    log.info("Changed encoding from %s to UTF-8 in %s" % (enc.upper(), f.name))
 
                 new_text = new_data.decode(enc, errors="replace")
 
@@ -801,11 +802,11 @@ class EpubPrep(object):
                 for pat in ENCODING_PATS:
                     new_text, i = re.subn(pat, r"\1utf-8\3", new_text, re.IGNORECASE)
                     if i:
-                        self.log.info("Changed encoding declaration from %s to UTF-8 in %s" % (enc.upper(), f.name))
+                        log.info("Changed encoding declaration from %s to UTF-8 in %s" % (enc.upper(), f.name))
 
             if (f.ext == "xhtml" or f.mimetype == "application/xhtml+xml") and not new_text.strip().startswith("<?xml"):
                 new_text = "<?xml version='1.0' encoding='utf-8'?>" + new_text
-                self.log.info("Added XML declaration to %s" % f.name)
+                log.info("Added XML declaration to %s" % f.name)
 
             new_text = re.sub(r"<\?xml([^\?]*?)\?><", r"<?xml\1?>\n<", new_text)
             f.data = new_text.encode("utf-8")
@@ -824,10 +825,10 @@ class EpubPrep(object):
             for ns, url in DICTIONARY_NSMAP.items():
                 if ns not in html.nsmap and ("<%s:" % ns).encode("utf8") in f.data:
                     f.data = f.data.replace(b"<html", ("<html xmlns:%s=\"%s\"" % (ns, url)).encode("utf8"), 1)
-                    self.log.info("Added %s XML namespace to %s" % (ns, f.name))
+                    log.info("Added %s XML namespace to %s" % (ns, f.name))
 
             if not f.data.startswith(b"<?xml"):
-                self.log.info("Parsing %s as HTML soup" % f.name)
+                log.info("Parsing %s as HTML soup" % f.name)
                 document = soupparser.fromstring(f.data)
                 f.data = etree.tostring(document, encoding="utf-8", pretty_print=False, xml_declaration=False)
 
@@ -841,7 +842,7 @@ class EpubPrep(object):
         body = tfind(document, "body")
         if body is not None and FIX_ONLOAD_ATTRIB and "onload" in body.attrib:
             body.attrib.pop("onload")
-            self.log.info("Removed onload attribute from body of %s" % f.filename)
+            log.info("Removed onload attribute from body of %s" % f.filename)
             fixed = True
 
         for elem in document.iter("*"):
@@ -867,14 +868,14 @@ class EpubPrep(object):
                 src = elem.get("src")
                 if src and re.match(r"^[a-zA-Z]:", src):
                     elem.set("src", src[2:])
-                    self.log.info("Removed '%s' from image reference in %s" % (src[0:2], f.filename))
+                    log.info("Removed '%s' from image reference in %s" % (src[0:2], f.filename))
                     fixed = True
 
             if FIX_AMZN_REMOVED_ATTRIBS:
                 for removed_attrib in ["data-AmznRemoved", "data-AmznRemoved-M8"]:
                     if removed_attrib in elem.attrib:
                         elem.attrib.pop(removed_attrib, None)
-                        self.log.info("Removed '%s' attribute from '%s' in %s" % (removed_attrib, elem.tag, f.filename))
+                        log.info("Removed '%s' attribute from '%s' in %s" % (removed_attrib, elem.tag, f.filename))
                         fixed = True
 
             if FIX_LANGUAGE_SUFFIX and tag in ["html", "body"]:
@@ -895,7 +896,7 @@ class EpubPrep(object):
                     fixed = True
 
             if FIX_EPUB3_SWITCH and tag == "switch":
-                self.log.info("Removed EPUB 3 switch in %s" % f.filename)
+                log.info("Removed EPUB 3 switch in %s" % f.filename)
                 elem.tag = "div"
                 if len(elem) > 0:
                     elem[0].tag = "div"
@@ -904,7 +905,7 @@ class EpubPrep(object):
                 fixed = True
 
         if br_fix_count:
-            self.log.info("Removed calibre class from %d br in %s" % (br_fix_count, f.filename))
+            log.info("Removed calibre class from %d br in %s" % (br_fix_count, f.filename))
 
         if fixed:
             is_xml = (f.ext == "xhtml" or f.mimetype == "application/xhtml+xml" or f.data[:32].startswith(b"<?xml"))
@@ -923,7 +924,7 @@ class EpubPrep(object):
             data, num_subs = re.subn(enc("-webkit-box-shadow\\s?:"), enc("box-shadow:"), data)
 
             if num_subs:
-                self.log.info("Replaced -webkit-box-shadow with box-shadow in %s" % (filename))
+                log.info("Replaced -webkit-box-shadow with box-shadow in %s" % (filename))
                 return data
 
         return None
@@ -937,7 +938,7 @@ class EpubPrep(object):
             tf, tid, sort_key = self.ref_file_id_and_key(src)
             if tf and tid and (tf.body_id == tid):
                 fixed_href = href.rpartition("#")[0]
-                self.log.info("Adjusted %s reference to body element id: %s --> %s" % (ftype, href, fixed_href))
+                log.info("Adjusted %s reference to body element id: %s --> %s" % (ftype, href, fixed_href))
                 elem.set("href", fixed_href)
                 fixed = True
 
@@ -946,7 +947,7 @@ class EpubPrep(object):
                 if "%" in orig_src:
                     fixed_src = urllib.parse.unquote(orig_src)
                     if fixed_src != orig_src:
-                        self.log.info("Unquoted %s reference: %s" % (ftype, orig_src))
+                        log.info("Unquoted %s reference: %s" % (ftype, orig_src))
                         elem.set("href", fixed_src)
                         fixed = True
 
@@ -958,7 +959,7 @@ class EpubPrep(object):
             if "%" in orig_src:
                 fixed_src = urllib.parse.unquote(orig_src)
                 if fixed_src != orig_src:
-                    self.log.info("Unquoted %s reference: %s" % (ftype, orig_src))
+                    log.info("Unquoted %s reference: %s" % (ftype, orig_src))
                     elem.set("src", fixed_src)
                     return True
 
@@ -972,7 +973,7 @@ class EpubPrep(object):
         im = Image.open(io.BytesIO(f.data))
 
         if im.mode == "P" and "transparency" in im.info:
-            self.log.info("Removing transparency from GIF: %s" % f.filename)
+            log.info("Removing transparency from GIF: %s" % f.filename)
 
             palette = im.getpalette()
             trans = im.info["transparency"] * 3
@@ -992,7 +993,7 @@ class EpubPrep(object):
             tree = None
 
         if tree is None:
-            self.log.info("Parsing %s as HTML" % f.name)
+            log.info("Parsing %s as HTML" % f.name)
             tree = etree.fromstring(f.data, parser=self.html_parser)
 
         if tree is None:

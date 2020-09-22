@@ -22,6 +22,9 @@ import time
 import uuid
 import zipfile
 
+from .jxr_container import JXRContainer
+from .message_logging import log
+
 from .python_transition import (IS_PYTHON2, bytes_to_list)
 if IS_PYTHON2:
     from .python_transition import (html, str, urllib)
@@ -36,13 +39,14 @@ __copyright__ = "2020, John Howell <jhowell@acm.org>"
 
 MAX_TEMPDIR_REMOVAL_TRIES = 60
 
-
 PLATFORM_NAME = sys.platform.lower()
 IS_MACOS = "darwin" in PLATFORM_NAME
 IS_WINDOWS = "win32" in PLATFORM_NAME or "win64" in PLATFORM_NAME
 IS_LINUX = not (IS_MACOS or IS_WINDOWS)
 LOCALE_ENCODING = locale.getdefaultlocale()[1] or "utf8"
 PATH_SEPARATOR = ";" if IS_WINDOWS else ":"
+EXECUTABLE_EXT = ".exe" if IS_WINDOWS else ""
+
 
 UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 UUID_MATCH_RE = r"^%s$" % UUID_RE
@@ -69,9 +73,11 @@ MIMETYPE_OF_EXT = {
     ".kvg": "image/kvg",
     ".mp3": "audio/mpeg",
     ".mp4": "video/mp4",
+    ".mpg": "video/mpeg",
     ".ncx": "application/x-dtbncx+xml",
     ".opf": "application/oebps-package+xml",
     ".otf": "font/otf",
+    ".pfb": "application/x-font-type1",
     ".png": "image/png",
     ".pdf": "application/pdf",
     ".pobject": "application/azn-plugin-object",
@@ -152,6 +158,7 @@ EXTS_OF_MIMETYPE = {
     "application/x-kfx-magazine": [".kfx"],
     "application/x-mobi8-ebook": [".azw3"],
     "application/x-mobi8-images": [".azw6"],
+    "application/x-font-type1": [".pfb"],
     "application/x-rar-compressed": [".rar"],
     "application/x-protobuf": [".bin"],
     "application/x-x509-ca-cert": [".der"],
@@ -163,6 +170,7 @@ EXTS_OF_MIMETYPE = {
     "application/zip": [".zip"],
     "application/zip+mpub": [".zip"],
     "audio": [".mp3"],
+    "audio/mp3": [".mp4"],
     "audio/mp4": [".mp4"],
     "audio/mpeg": [".mp3"],
     "figure": [".figure"],
@@ -195,7 +203,9 @@ EXTS_OF_MIMETYPE = {
     "text/plain": [".txt"],
     "text/xml": [".xml"],
     "video": [".mp4"],
+    "video/h264": [".mp4"],
     "video/mp4": [".mp4"],
+    "video/mpeg": [".mpg"],
     "video/ogg": [".ogg"],
     "video/webm": [".webm"],
     }
@@ -255,7 +265,7 @@ def temp_file_cleanup():
                 tries += 1
 
         if tempdir_:
-            print("ERROR: Failed to remove temp directory: %s" % tempdir_)
+            log.error("Failed to remove temp directory: %s" % tempdir_)
             tempdir_ = None
 
 
@@ -318,7 +328,7 @@ def quote_name(s):
     return "\"%s\"" % s if ("," in s or " " in s) else s
 
 
-def check_empty(log, a_dict, dict_name):
+def check_empty(a_dict, dict_name):
     if len(a_dict) > 0:
         try:
             extra_data = repr(a_dict)
@@ -332,14 +342,13 @@ def check_empty(log, a_dict, dict_name):
         a_dict.clear()
 
 
-def json_serialize(data, sort_keys=False):
-    result = json.dumps(data, indent=4, separators=(",", ": "), sort_keys=sort_keys)
+def json_serialize(data, sort_keys=False, indent=4, separators=(",", ": ")):
+    result = json.dumps(data, indent=indent, separators=separators, sort_keys=sort_keys, default=lambda o: o.__dict__)
     return result.decode("ascii") if IS_PYTHON2 else result
 
 
 def json_serialize_compact(data, sort_keys=False):
-    result = json.dumps(data, indent=None, separators=(",", ":"), sort_keys=sort_keys)
-    return result.decode("ascii") if IS_PYTHON2 else result
+    return json_serialize(data, sort_keys=sort_keys, indent=None, separators=(",", ":"))
 
 
 def json_deserialize(data, ordered=True):
@@ -418,6 +427,9 @@ def font_file_ext(data, default=""):
 
     if data[0:4] == b"\x00\x00\x01\x00":
         return ".dfont"
+
+    if data[0:2] == b"\x80\x01" and data[6:24] == b"%!PS-AdobeFont-1.0":
+        return ".pfb"
 
     return default
 
@@ -630,7 +642,7 @@ def locale_decode(x, encoding=LOCALE_ENCODING, silent=False):
             try:
                 return x.decode(encoding, errors="strict")
             except UnicodeDecodeError:
-                print("failed to decode string %s using %s" % (bytes_to_separated_hex(x), encoding))
+                log.info("failed to decode string %s using %s" % (bytes_to_separated_hex(x), encoding))
 
         return x.decode(encoding, errors="replace")
 
@@ -811,17 +823,46 @@ class DataFile(object):
         return self.name < other.name
 
 
-def pil_image_to_data(im, fmt="JPEG"):
+def convert_jxr_to_tiff(jxr_data, resource_name):
+
+    if calibre_numeric_version is not None and calibre_numeric_version >= (3, 9, 0):
+
+        try:
+            from calibre.utils.img import (load_jxr_data, image_to_data)
+            img = load_jxr_data(jxr_data)
+            tiff_data = image_to_data(img, fmt="TIFF")
+
+            if tiff_data:
+                return tiff_data
+        except Exception as e:
+            log.warning("Conversion of JPEG-XR resource failed: %s" % repr(e))
+
+        log.info("Using fallback JPEG-XR conversion for %s" % resource_name)
+
+    start_time = time.time()
+
+    im = JXRContainer(jxr_data).unpack_image()
+
+    duration = time.time() - start_time
+    if duration >= 0.5:
+        log.info("JPEG-XR to TIFF conversion took %0.1f sec" % duration)
+
     outfile = io.BytesIO()
-    im.save(outfile, fmt)
+    with disable_debug_log():
+        im.save(outfile, "TIFF")
+        im.close()
+
     return outfile.getvalue()
 
 
-def convert_pdf_to_jpeg(log, pdf_data, page_num, reported_errors=None):
+def convert_pdf_to_jpeg(pdf_data, page_num, dpi=150, reported_errors=None):
     pdf_file = temp_filename("pdf", pdf_data)
     jpeg_dir = create_temp_dir()
 
     if True:
+
+        if dpi != 150:
+            raise Exception("calibre PDF page_images supports only default 150dpi")
 
         from calibre.ebooks.metadata.pdf import page_images
         page_images(pdf_file, jpeg_dir, first=page_num, last=page_num)
@@ -849,6 +890,18 @@ def OD(*args):
         od[args[i]] = args[i+1]
 
     return od
+
+
+def md5(data):
+    return hashlib.md5(data).digest()
+
+
+def sha1(data):
+    return hashlib.sha1(data).digest()
+
+
+def sha256(data):
+    return hashlib.sha256(data).digest()
 
 
 ENABLE_WIDE_UNICODE_HANDLING = True

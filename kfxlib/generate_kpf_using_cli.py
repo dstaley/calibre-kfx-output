@@ -8,6 +8,7 @@ import io
 import os
 
 from .generate_kpf_common import (ConversionProcess, ConversionResult, ConversionSequence, KindlePreviewer)
+from .message_logging import log
 from .utilities import (file_read_binary, file_read_utf8, file_write_utf8, join_search_path, natural_sort_key, truncate_list)
 
 from .python_transition import IS_PYTHON2
@@ -29,14 +30,14 @@ class KPR_CLI(ConversionSequence):
     SEQUENCE_NAME = "KPR_CLI"
 
     def init_application(self):
-        self.application = KindlePreviewer(self.log)
+        self.application = KindlePreviewer()
 
     def perform_conversion_sequence(self):
         retry_count = 0
         result, is_specific_error = self.perform_conversion_sequence_once()
 
         while result.kpf_data is None and retry_count <= MAX_CONVERSION_RETRIES and not is_specific_error:
-            self.log.info("Unknown conversion error occurred -- Retrying")
+            log.info("Unknown conversion error occurred -- Retrying")
             retry_count += 1
             result, is_specific_error = self.perform_conversion_sequence_once()
 

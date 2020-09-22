@@ -37,7 +37,7 @@ class KFXOutput(OutputFormatPlugin):
     name = "KFX Output"
     author = "jhowell"
     file_type = "kfx"
-    version = (1, 43, 0)
+    version = (1, 44, 0)
     minimum_calibre_version = (2, 0, 0)                 # required for apsw with sqlite >= 3.8.2
     supported_platforms = ["windows", "osx"]
 
@@ -270,13 +270,15 @@ class KFXOutput(OutputFormatPlugin):
 
     def convert_using_previewer(self, log, book_name, input_filename, asin, cde_type_pdoc, approximate_pages,
                                 include_logs, save_cleaned, timeout_sec, output):
-        from calibre_plugins.kfx_output.kfxlib import (file_write_binary, YJ_Book)
+        from calibre_plugins.kfx_output.kfxlib import (file_write_binary, set_logger, YJ_Book)
 
+        set_logger(log)
         log.info("Converting %s" % input_filename)
 
         result = YJ_Book(input_filename, log).convert_to_kpf(
                 timeout_sec=timeout_sec,
                 cleaned_filename=os.path.splitext(output)[0] + "_cleaned.epub" if save_cleaned else None)
+        set_logger()
 
         if not result.kpf_data:
             log.info("\n****************** Conversion Failure Reason *****************")
@@ -306,11 +308,12 @@ class KFXOutput(OutputFormatPlugin):
 
     def convert_from_kpf_or_zip(self, log, book_name, input, asin, cde_type_pdoc, approximate_pages, from_kpf, output):
         from calibre.ebooks.metadata import author_to_author_sort
-        from calibre_plugins.kfx_output.kfxlib import (file_write_binary, YJ_Book, YJ_Metadata)
+        from calibre_plugins.kfx_output.kfxlib import (file_write_binary, set_logger, YJ_Book, YJ_Metadata)
 
         # would be better to use db.author_sort_from_authors instead of author_to_author_sort since that uses the author table
         # controlled by user, but the db is not available when conversion is performed.
 
+        set_logger(log)
         log.info("Converting %s" % input)
 
         if from_kpf:
@@ -325,7 +328,10 @@ class KFXOutput(OutputFormatPlugin):
         else:
             md = None       # keep existing metadata
 
-        kfx_data = YJ_Book(input, log, metadata=md, approximate_pages=approximate_pages).convert_to_single_kfx()    # repackage KPF as KFX
+        book = YJ_Book(input, log)
+        book.decode_book(set_metadata=md, set_approximate_pages=approximate_pages)
+        kfx_data = book.convert_to_single_kfx()    # repackage KPF as KFX
+        set_logger()
 
         if log.errors and not self.cli:
             self.report_failure("KFX creation error", "\n".join(log.errors), book_name)
@@ -389,3 +395,6 @@ class JobLog(object):
     def exception(self, msg):
         self.errors.append("EXCEPTION: %s" % msg)
         self.logger.exception("EXCEPTION: %s" % msg)
+
+    def __call__(self, *args):
+        self.info(" ".join([str(arg) for arg in args]))

@@ -19,10 +19,11 @@ except ImportError:
 
 from calibre.utils.config_base import tweaks
 
+from .message_logging import log
 from .previewer_prep_epub import EpubPrep
 from .utilities import (
         create_temp_dir, file_read_binary, file_read_utf8, file_write_binary, locale_encode,
-        natural_sort_key, os_environ_get, quote_name, windows_user_dir, IS_MACOS, IS_WINDOWS,
+        natural_sort_key, os_environ_get, quote_name, windows_user_dir, EXECUTABLE_EXT, IS_MACOS, IS_WINDOWS,
         LOCALE_ENCODING)
 
 from .python_transition import IS_PYTHON2
@@ -51,16 +52,12 @@ UNKNOWN_VERSION_PREFIX = "unknown"
 
 
 class ConversionApplication(object):
-    EXECUTABLE_EXT = ".exe" if IS_WINDOWS else ""
-
-    def __init__(self, log):
-        self.log = log
-
+    def __init__(self):
         self.program_path = self.locate_program()
         if not os.path.isdir(self.program_path):
             raise Exception("%s not installed as expected. (%s missing)" % (self.PROGRAM_NAME, self.program_path))
 
-        self.main_program_path = os.path.join(self.program_path, self.PROGRAM_NAME + self.EXECUTABLE_EXT)
+        self.main_program_path = os.path.join(self.program_path, self.PROGRAM_NAME + EXECUTABLE_EXT)
         self.program_version = self.get_program_version()
         self.program_version_sort = natural_sort_key(self.program_version)
 
@@ -130,6 +127,9 @@ class KindlePreviewer(ConversionApplication):
             32605640: "3.39.1",
             36847048: "3.40.0",
             36847560: "3.41.0",
+            36911048: "3.42.0",
+            37035464: "3.43.0",
+            37058504: "3.44.0",
             }
 
     if IS_MACOS:
@@ -178,6 +178,9 @@ class KindlePreviewer(ConversionApplication):
             70587408: "3.38.0",
             78298688: "3.39.0",
             80114960: "3.40.0",
+            80206592: "3.42.0",
+            76647328: "3.43.0",
+            72416848: "3.44.0",
             }
 
     def locate_program(self):
@@ -201,7 +204,7 @@ class KindlePreviewer(ConversionApplication):
 
                     program_path = value
                 except Exception:
-                    self.log.warning("Failed to obtain the Kindle Previewer path from the registry")
+                    log.warning("Failed to obtain the Kindle Previewer path from the registry")
             return program_path
 
         if IS_MACOS:
@@ -221,7 +224,6 @@ class ConversionProcess(object):
 
     def __init__(self, sequence):
         self.sequence = sequence
-        self.log = sequence.log
         self.application = sequence.application
         self.timeout_sec = sequence.timeout_sec
         self.out_file = self.output = self.error_msg = self.returncode = None
@@ -233,12 +235,12 @@ class ConversionProcess(object):
             self.wait_for_completion()
 
     def start(self):
-        self.log.info("Launching %s (%s) - %s" % (
+        log.info("Launching %s (%s) - %s" % (
             self.application.PROGRAM_NAME, self.application.program_version, self.function_name))
         self.out_file = open(self.out_file_name, "wb")
 
         if self.use_wincon and WindowsConsole is not None:
-            self.wincon = WindowsConsole(self.log)
+            self.wincon = WindowsConsole()
             self.wincon.use_alternate_console_buffer()
         else:
             self.wincon = None
@@ -287,7 +289,7 @@ class ConversionProcess(object):
 
         duration = time.time() - start_time
         if duration > LOG_CONVERSION_DURATION_SEC:
-            self.log.info("Conversion process took %d seconds" % duration)
+            log.info("Conversion process took %d seconds" % duration)
 
         time.sleep(COMPLETION_SLEEP_SEC)
 
@@ -363,13 +365,12 @@ class ConversionSequence(object):
     def __init__(self):
         pass
 
-    def convert(self, log, infile, flags, timeout_sec, cleaned_filename):
-        self.log = log
+    def convert(self, infile, flags, timeout_sec, cleaned_filename):
         self.infile = infile
         self.flags = flags
         self.timeout_sec = timeout_sec
         self.cleaned_filename = FORCED_CLEANED_FILENAME or cleaned_filename
-        self.log.info("Converting %s to KPF" % quote_name(self.infile))
+        log.info("Converting %s to KPF" % quote_name(self.infile))
 
         self.data_dir = create_temp_dir()
         self.unique_cnt = 0
@@ -401,14 +402,14 @@ class ConversionSequence(object):
 
         self.in_file_name = os.path.join(self.data_dir, simple_in_file_name + ext)
 
-        epub_prep = EpubPrep(self.log, self.infile)
+        epub_prep = EpubPrep(self.infile)
 
         if PREPARE_EPUBS_FOR_PREVIEWER and "NoPrep" not in self.flags:
             epub_prep.prepare(self.in_file_name, self.application, self.SEQUENCE_NAME)
 
             if self.cleaned_filename:
                 file_write_binary(self.cleaned_filename, file_read_binary(self.in_file_name))
-                self.log.info("Saved cleaned conversion input file to %s" % self.cleaned_filename)
+                log.info("Saved cleaned conversion input file to %s" % self.cleaned_filename)
         else:
             shutil.copyfile(self.infile, self.in_file_name)
 
@@ -417,7 +418,7 @@ class ConversionSequence(object):
         self.is_dictionary = epub_prep.is_dictionary
         self.full_book_type = epub_prep.full_book_type
         if self.is_dictionary:
-            self.log.warning("Lookup will not function in dictionaries converted to KFX format")
+            log.warning("Lookup will not function in dictionaries converted to KFX format")
 
     def create_unique_dir(self):
         unique_dir = os.path.join(self.data_dir, "%04x" % self.unique_cnt)

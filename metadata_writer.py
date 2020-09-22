@@ -23,7 +23,7 @@ class KFXMetadataWriter(MetadataWriterPlugin):
     author = "jhowell"
 
     def set_metadata(self, stream, mi, type_):
-        from calibre_plugins.kfx_output.kfxlib import (YJ_Book, YJ_Metadata)
+        from calibre_plugins.kfx_output.kfxlib import (set_logger, YJ_Book, YJ_Metadata)
         from calibre.ebooks import normalize as normalize_unicode
         from calibre.ebooks.metadata import author_to_author_sort
         from calibre.utils.config_base import tweaks
@@ -45,7 +45,7 @@ class KFXMetadataWriter(MetadataWriterPlugin):
 
             return normalize_unicode(s)
 
-        log = Log()
+        log = set_logger(Log())
 
         filename = stream.name if hasattr(stream, "name") else "stream"
         log.info("KFX metadata writer activated for %s" % filename)
@@ -121,7 +121,10 @@ class KFXMetadataWriter(MetadataWriterPlugin):
         else:
             page_count = -1
 
-        new_data = YJ_Book(stream, log, metadata=md, approximate_pages=page_count).convert_to_single_kfx()
+        book = YJ_Book(stream, log)
+        book.decode_book(set_metadata=md, set_approximate_pages=page_count)
+        new_data = book.convert_to_single_kfx()
+        set_logger()
 
         stream.seek(0)
         stream.truncate()

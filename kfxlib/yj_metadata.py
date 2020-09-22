@@ -6,6 +6,7 @@ import random
 import string
 
 from .ion import (IS, IonBLOB, IonStruct, IonSymbol, ion_type, unannotated)
+from .message_logging import log
 from .utilities import (convert_pdf_to_jpeg, disable_debug_log, list_symbols, quote_name)
 from .yj_container import (YJFragment, YJFragmentKey)
 from .yj_structure import (FORMAT_SYMBOLS, KFX_COVER_RESOURCE, METADATA_NAMES, METADATA_SYMBOLS, SYMBOL_FORMATS)
@@ -20,9 +21,6 @@ __license__ = "GPL v3"
 __copyright__ = "2020, John Howell <jhowell@acm.org>"
 
 
-cds = set()
-
-
 class YJ_Metadata(object):
     def __init__(self, author_sort_fn=None, replace_existing_authors_with_sort=False):
         self.authors = []
@@ -31,10 +29,13 @@ class YJ_Metadata(object):
         self.title = self.cde_content_type = self.asin = self.cover_image_data = self.description = None
         self.issue_date = self.language = self.publisher = self.book_id = self.features = None
 
-    def get_from_book(self, book):
+
+class BookMetadata(object):
+    def get_yj_metadata_from_book(self):
+        yj_metadata = YJ_Metadata()
         authors = []
 
-        fragment = book.fragments.get("$490")
+        fragment = self.fragments.get("$490")
         if fragment is not None:
             for cm in fragment.value.get("$491", {}):
                 if cm.get("$495", "") == "kindle_title_metadata":
@@ -45,23 +46,23 @@ class YJ_Metadata(object):
                         if key == "author":
                             authors.append(val)
                         elif key == "title":
-                            self.title = val
+                            yj_metadata.title = val
                         elif key == "cde_content_type":
-                            self.cde_content_type = val
+                            yj_metadata.cde_content_type = val
                         elif key == "ASIN":
-                            self.asin = val
+                            yj_metadata.asin = val
                         elif key == "description":
-                            self.description = val
+                            yj_metadata.description = val
                         elif key == "issue_date":
-                            self.issue_date = val
+                            yj_metadata.issue_date = val
                         elif key == "language":
-                            self.language = val
+                            yj_metadata.language = val
                         elif key == "publisher":
-                            self.publisher = val
+                            yj_metadata.publisher = val
                         elif key == "book_id":
-                            self.book_id = val
+                            yj_metadata.book_id = val
 
-        fragment = book.fragments.get("$258")
+        fragment = self.fragments.get("$258")
         if fragment is not None:
             for name, val in fragment.value.items():
                 key = METADATA_NAMES.get(name, "")
@@ -79,50 +80,50 @@ class YJ_Metadata(object):
                     elif val:
                         authors.append(val)
 
-                elif key == "title" and not self.title:
-                    self.title = val
-                elif key == "cde_content_type" and not self.cde_content_type:
-                    self.cde_content_type = val
-                elif key == "ASIN" and not self.asin:
-                    self.asin = val
-                elif key == "description" and not self.description:
-                    self.description = val
-                elif key == "issue_date" and not self.issue_date:
-                    self.issue_date = val
-                elif key == "language" and not self.language:
-                    self.language = val
-                elif key == "publisher" and not self.publisher:
-                    self.publisher = val
+                elif key == "title" and not yj_metadata.title:
+                    yj_metadata.title = val
+                elif key == "cde_content_type" and not yj_metadata.cde_content_type:
+                    yj_metadata.cde_content_type = val
+                elif key == "ASIN" and not yj_metadata.asin:
+                    yj_metadata.asin = val
+                elif key == "description" and not yj_metadata.description:
+                    yj_metadata.description = val
+                elif key == "issue_date" and not yj_metadata.issue_date:
+                    yj_metadata.issue_date = val
+                elif key == "language" and not yj_metadata.language:
+                    yj_metadata.language = val
+                elif key == "publisher" and not yj_metadata.publisher:
+                    yj_metadata.publisher = val
 
-        self.authors = []
+        yj_metadata.authors = []
         for author in authors:
             author = unsort_author_name(author)
-            if author and author not in self.authors:
-                self.authors.append(author)
+            if author and author not in yj_metadata.authors:
+                yj_metadata.authors.append(author)
 
-        cover_image_data = book.get_cover_image_data()
+        cover_image_data = self.get_cover_image_data()
         if cover_image_data is not None:
-            self.cover_image_data = cover_image_data
+            yj_metadata.cover_image_data = cover_image_data
 
-        self.features = book.get_features()
+        yj_metadata.features = self.get_features()
 
-        return self
+        return yj_metadata
 
-    def set_to_book(self, book):
+    def set_yj_metadata_to_book(self, yj_metadata):
 
-        authors = [self.author_sort_fn(author) for author in self.authors] if self.authors is not None else None
+        authors = [yj_metadata.author_sort_fn(author) for author in yj_metadata.authors] if yj_metadata.authors is not None else None
 
-        if self.asin is True:
-            self.asin = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32))
+        if yj_metadata.asin is True:
+            yj_metadata.asin = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32))
 
-        book_metadata_fragment = book.fragments.get("$490")
-        metadata_fragment = book.fragments.get("$258")
+        book_metadata_fragment = self.fragments.get("$490")
+        metadata_fragment = self.fragments.get("$258")
 
         if book_metadata_fragment is None and metadata_fragment is None:
-            book.log.error("Cannot set metadata due to missing metadata fragments in book")
+            log.error("Cannot set metadata due to missing metadata fragments in book")
 
-        if self.cover_image_data is not None and self.cover_image_data != book.get_cover_image_data():
-            cover_image = book.set_cover_image_data(self.cover_image_data[0], self.cover_image_data[1])
+        if yj_metadata.cover_image_data is not None and yj_metadata.cover_image_data != self.get_cover_image_data():
+            cover_image = self.set_cover_image_data(yj_metadata.cover_image_data[0], yj_metadata.cover_image_data[1])
         else:
             cover_image = None
 
@@ -134,22 +135,22 @@ class YJ_Metadata(object):
                         key = kv.get("$492", "")
                         val = kv.get("$307", "")
 
-                        if key == "author" and self.replace_existing_authors_with_sort:
+                        if key == "author" and yj_metadata.replace_existing_authors_with_sort:
                             if authors is None:
                                 authors = []
 
-                            authors.append(self.author_sort_fn(val))
+                            authors.append(yj_metadata.author_sort_fn(val))
 
                         elif ((key == "author" and authors is not None) or
-                                (key == "title" and self.title is not None) or
-                                (key == "cde_content_type" and self.cde_content_type is not None) or
-                                (key == "ASIN" and self.asin is not None) or
-                                (key == "content_id" and self.asin is not None) or
+                                (key == "title" and yj_metadata.title is not None) or
+                                (key == "cde_content_type" and yj_metadata.cde_content_type is not None) or
+                                (key == "ASIN" and yj_metadata.asin is not None) or
+                                (key == "content_id" and yj_metadata.asin is not None) or
                                 (key == "cover_image" and cover_image is not None) or
-                                (key == "description" and self.description is not None) or
-                                (key == "issue_date" and self.issue_date is not None) or
-                                (key == "language" and self.language is not None) or
-                                (key == "publisher" and self.publisher is not None)):
+                                (key == "description" and yj_metadata.description is not None) or
+                                (key == "issue_date" and yj_metadata.issue_date is not None) or
+                                (key == "language" and yj_metadata.language is not None) or
+                                (key == "publisher" and yj_metadata.publisher is not None)):
                             pass
 
                         elif key:
@@ -159,30 +160,30 @@ class YJ_Metadata(object):
                         for author in authors:
                             new_kv.append(("author", author))
 
-                    if self.title is not None:
-                        new_kv.append(("title", self.title))
+                    if yj_metadata.title is not None:
+                        new_kv.append(("title", yj_metadata.title))
 
-                    if self.cde_content_type is not None:
-                        new_kv.append(("cde_content_type", self.cde_content_type))
+                    if yj_metadata.cde_content_type is not None:
+                        new_kv.append(("cde_content_type", yj_metadata.cde_content_type))
 
-                    if self.asin is not None:
-                        new_kv.append(("ASIN", self.asin))
-                        new_kv.append(("content_id", self.asin))
+                    if yj_metadata.asin is not None:
+                        new_kv.append(("ASIN", yj_metadata.asin))
+                        new_kv.append(("content_id", yj_metadata.asin))
 
                     if cover_image is not None:
                         new_kv.append(("cover_image", cover_image))
 
-                    if self.description is not None:
-                        new_kv.append(("description", self.description))
+                    if yj_metadata.description is not None:
+                        new_kv.append(("description", yj_metadata.description))
 
-                    if self.issue_date is not None:
-                        new_kv.append(("issue_date", self.issue_date))
+                    if yj_metadata.issue_date is not None:
+                        new_kv.append(("issue_date", yj_metadata.issue_date))
 
-                    if self.language is not None:
-                        new_kv.append(("language", self.language))
+                    if yj_metadata.language is not None:
+                        new_kv.append(("language", yj_metadata.language))
 
-                    if self.publisher is not None:
-                        new_kv.append(("publisher", self.publisher))
+                    if yj_metadata.publisher is not None:
+                        new_kv.append(("publisher", yj_metadata.publisher))
 
                     cm[IS("$258")] = [IonStruct(IS("$492"), k, IS("$307"), v) for k, v in sorted(new_kv)]
 
@@ -195,18 +196,18 @@ class YJ_Metadata(object):
                 else:
                     mdx.pop("$222", None)
 
-                if self.title is not None:
-                    mdx[IS("$153")] = self.title
+                if yj_metadata.title is not None:
+                    mdx[IS("$153")] = yj_metadata.title
                 else:
                     mdx.pop("$153", None)
 
-                if self.cde_content_type is not None:
-                    mdx[IS("$251")] = self.cde_content_type
+                if yj_metadata.cde_content_type is not None:
+                    mdx[IS("$251")] = yj_metadata.cde_content_type
                 else:
                     mdx.pop("$251", None)
 
-                if self.asin is not None:
-                    mdx[IS("$224")] = self.asin
+                if yj_metadata.asin is not None:
+                    mdx[IS("$224")] = yj_metadata.asin
                 else:
                     mdx.pop("$224", None)
 
@@ -215,57 +216,26 @@ class YJ_Metadata(object):
                 else:
                     mdx.pop("$424", None)
 
-                if self.description is not None:
-                    mdx[IS("$154")] = self.description
+                if yj_metadata.description is not None:
+                    mdx[IS("$154")] = yj_metadata.description
                 else:
                     mdx.pop("$154", None)
 
-                if self.issue_date is not None:
-                    mdx[IS("$219")] = self.issue_date
+                if yj_metadata.issue_date is not None:
+                    mdx[IS("$219")] = yj_metadata.issue_date
                 else:
                     mdx.pop("$219", None)
 
-                if self.language is not None:
-                    mdx[IS("$10")] = self.language
+                if yj_metadata.language is not None:
+                    mdx[IS("$10")] = yj_metadata.language
                 else:
                     mdx.pop("$10", None)
 
-                if self.publisher is not None:
-                    mdx[IS("$232")] = self.publisher
+                if yj_metadata.publisher is not None:
+                    mdx[IS("$232")] = yj_metadata.publisher
                 else:
                     mdx.pop("$232", None)
 
-
-def author_sort_name(author):
-
-    PERSON_SUFFIXES = {"phd", "md", "ba", "ma", "dds", "msts", "sr", "senior", "jr", "junior", "ii", "iii", "iv"}
-
-    al = author.split()
-
-    if len(al) < 2:
-        return author
-
-    if len(al) > 2 and al[-1].replace(".", "").lower() in PERSON_SUFFIXES:
-        if al[-2].endswith(","):
-            al[-2] = al[-2][:-1]
-
-        al = al[0:-2] + ["%s %s" % (al[-2], al[-1])]
-
-    if "," in "".join(al):
-        return author
-
-    return al[-1] + ", " + " ".join(al[:-1])
-
-
-def unsort_author_name(author):
-    if ", " in author:
-        last, sep, first = author.partition(", ")
-        author = first + " " + last
-
-    return author
-
-
-class BookMetadata(object):
     def has_metadata(self):
         return (self.fragments.get(YJFragmentKey(ftype="$490")) is not None or
                 self.fragments.get(YJFragmentKey(ftype="$258")) is not None)
@@ -292,11 +262,11 @@ class BookMetadata(object):
         return self.cde_type == "EBSP"
 
     @property
-    def is_textbook(self):
-        if not hasattr(self, "_cached_is_textbook"):
-            self._cached_is_textbook = self.get_metadata_value("yj_textbook", category="kindle_capability_metadata") is not None
+    def is_print_replica(self):
+        if not hasattr(self, "_cached_is_print_replica"):
+            self._cached_is_print_replica = self.get_metadata_value("yj_textbook", category="kindle_capability_metadata") is not None
 
-        return self._cached_is_textbook
+        return self._cached_is_print_replica
 
     @property
     def is_fixed_layout(self):
@@ -328,6 +298,30 @@ class BookMetadata(object):
             self._cached_is_kfx_v1 = fragment.value.get("version", 0) == 1 if fragment is not None else False
 
         return self._cached_is_kfx_v1
+
+    @property
+    def has_pdf_resource(self):
+        if not hasattr(self, "_cached_has_pdf_resource"):
+            for fragment in self.fragments.get_all("$164"):
+                if fragment.value.get("$161") == "$565":
+                    self._cached_has_pdf_resource = True
+                    break
+            else:
+                self._cached_has_pdf_resource = False
+
+        return self._cached_has_pdf_resource
+
+    @property
+    def has_hdv_image_resource(self):
+        if not hasattr(self, "_cached_has_hdv_image_resource"):
+            for fragment in self.fragments.get_all("$164"):
+                if fragment.value.get(IS("$422"), 0) > 1920 or fragment.value.get(IS("$423"), 0) > 1920:
+                    self._cached_has_hdv_image_resource = True
+                    break
+            else:
+                self._cached_has_hdv_image_resource = False
+
+        return self._cached_has_hdv_image_resource
 
     def get_metadata_value(self, name, category="kindle_title_metadata", default=None):
         try:
@@ -406,12 +400,12 @@ class BookMetadata(object):
         for generator in sorted(self.get_generators()):
             generator_version = ("%s/%s" % generator) if generator[1] else generator[0]
             if not is_known_generator(generator[0], generator[1]):
-                self.log.warning("Unknown kfxgen: %s" % generator_version)
+                log.warning("Unknown kfxgen: %s" % generator_version)
             elif not unknown_only:
                 report_generators.add(generator_version)
 
         if report_generators:
-            self.log.info("kfxgen version: %s" % list_symbols(report_generators))
+            log.info("kfxgen version: %s" % list_symbols(report_generators))
 
         report_features = set()
         for namespace, key, value in sorted(self.get_features()):
@@ -421,12 +415,12 @@ class BookMetadata(object):
                 if not unknown_only:
                     report_features.add("%s-%s" % (key, value_str))
             elif namespace == "symbols":
-                self.log.warning("Unknown %s feature: %s-%s" % (namespace, key, str(value_str)))
+                log.warning("Unknown %s feature: %s-%s" % (namespace, key, str(value_str)))
             else:
-                self.log.error("Unknown %s feature: %s-%s" % (namespace, key, str(value_str)))
+                log.error("Unknown %s feature: %s-%s" % (namespace, key, str(value_str)))
 
         if report_features:
-            self.log.info("Features: %s" % list_symbols(report_features))
+            log.info("Features: %s" % list_symbols(report_features))
 
         metadata = []
         fragment = self.fragments.get("$490", first=True)
@@ -461,7 +455,7 @@ class BookMetadata(object):
         report_metadata = set()
         for cat, key, val in sorted(metadata):
             if not is_known_metadata(cat, key, val):
-                self.log.warning("Unknown %s: %s=%s" % (cat, key, str(val)))
+                log.warning("Unknown %s: %s=%s" % (cat, key, str(val)))
             elif not unknown_only:
                 if key == "cover_image":
                     try:
@@ -475,6 +469,7 @@ class BookMetadata(object):
                                 with disable_debug_log():
                                     cover = Image.open(io.BytesIO(cover_raw_media.value.tobytes()))
                                     resource_width, resource_height = cover.size
+                                    cover.close()
 
                         val = "%dx%d" % (resource_width, resource_height)
 
@@ -493,7 +488,7 @@ class BookMetadata(object):
                 report_metadata.add("%s=%s" % (key, quote_name(str(val))))
 
         if report_metadata:
-            self.log.info("Metadata: %s" % list_symbols(report_metadata))
+            log.info("Metadata: %s" % list_symbols(report_metadata))
 
     def get_cover_image_data(self):
 
@@ -538,6 +533,7 @@ class BookMetadata(object):
                 cover_thumbnail.thumbnail((512, 512), Image.ANTIALIAS)
                 outfile = io.BytesIO()
                 cover_thumbnail.save(outfile, "jpeg" if fmt == "jpg" else fmt, quality=90)
+                cover_thumbnail.close()
 
             thumbnail_data = outfile.getvalue()
 
@@ -559,6 +555,7 @@ class BookMetadata(object):
 
         cover = Image.open(io.BytesIO(data))
         width, height = cover.size
+        cover.close()
 
         orig_width = cover_resource.get("$422", 0)
         orig_height = cover_resource.get("$423", 0)
@@ -591,7 +588,7 @@ class BookMetadata(object):
                         section_updated = True
 
             if not section_updated:
-                self.log.info("First page image dimensions were not updated")
+                log.info("First page image dimensions were not updated")
 
         return cover_resource
 
@@ -637,9 +634,38 @@ class BookMetadata(object):
         page_num = cover_resource.get("$564", 0) + 1
 
         try:
-            jpeg_data = convert_pdf_to_jpeg(self.log, raw_media, page_num)
+            jpeg_data = convert_pdf_to_jpeg(raw_media, page_num)
         except Exception as e:
-            self.log.error("Exception during conversion of PDF '%s' page %d to JPEG: %s" % (location, page_num, repr(e)))
+            log.error("Exception during conversion of PDF '%s' page %d to JPEG: %s" % (location, page_num, repr(e)))
             return None
 
         return self.set_cover_image_data("jpeg", jpeg_data, update_cover_section=False)
+
+
+def author_sort_name(author):
+
+    PERSON_SUFFIXES = {"phd", "md", "ba", "ma", "dds", "msts", "sr", "senior", "jr", "junior", "ii", "iii", "iv"}
+
+    al = author.split()
+
+    if len(al) < 2:
+        return author
+
+    if len(al) > 2 and al[-1].replace(".", "").lower() in PERSON_SUFFIXES:
+        if al[-2].endswith(","):
+            al[-2] = al[-2][:-1]
+
+        al = al[0:-2] + ["%s %s" % (al[-2], al[-1])]
+
+    if "," in "".join(al):
+        return author
+
+    return al[-1] + ", " + " ".join(al[:-1])
+
+
+def unsort_author_name(author):
+    if ", " in author:
+        last, sep, first = author.partition(", ")
+        author = first + " " + last
+
+    return author

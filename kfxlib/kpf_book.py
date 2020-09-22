@@ -6,6 +6,7 @@ import uuid
 
 
 from .ion import (ion_type, IonAnnotation, IonFloat, IonList, IonSExp, IonString, IonStruct, IonSymbol, IS, isstring, unannotated)
+from .message_logging import log
 from .utilities import (font_file_ext)
 from .yj_container import (YJFragment, YJFragmentKey)
 from .yj_structure import (EID_REFERENCES, FORMAT_SYMBOLS, MAX_CONTENT_FRAGMENT_SIZE)
@@ -33,16 +34,16 @@ SHORT_TOOL_NAME = {
 
 
 class KpfBook(object):
-    def fix_kpf_prepub_book(self, retain_yj_locals):
+    def fix_kpf_prepub_book(self, fix_book, retain_yj_locals):
+        self.retain_yj_locals = retain_yj_locals
+
         if len(self.yj_containers) != 1:
             raise Exception("A KPF book should have only one container")
 
         self.kpf_container = self.yj_containers[0]
 
-        if self.pure or not FIX_BOOK:
+        if not (fix_book and FIX_BOOK):
             return
-
-        self.retain_yj_locals = retain_yj_locals
 
         for fragment in self.fragments.get_all("$417"):
             orig_fid = fragment.fid
@@ -159,30 +160,40 @@ class KpfBook(object):
 
         features = content_features.value["$590"]
 
-        if self.get_feature_value("CanonicalFormat", namespace="SDK.Marker") is None:
-            features.append(IonStruct(
-                IS("$586"), "SDK.Marker",
-                IS("$492"), "CanonicalFormat",
-                IS("$589"), IonStruct(IS("version"), IonStruct(
-                    IS("$587"), canonical_format[0],
-                    IS("$588"), canonical_format[1]))))
+        def add_feature(feature, namespace="com.amazon.yjconversion", version=(1, 0)):
+            if self.get_feature_value(feature, namespace=namespace) is None:
+                features.append(IonStruct(
+                            IS("$586"), namespace,
+                            IS("$492"), feature,
+                            IS("$589"), IonStruct(IS("version"), IonStruct(
+                                IS("$587"), version[0],
+                                IS("$588"), version[1]))))
+            else:
+                log.warning("Feature %s already present in KPF" % feature)
 
+        def add_feature_from_metadata(
+                metadata, feature, category="kindle_capability_metadata",
+                namespace="com.amazon.yjconversion", version=(1, 0)):
+            if self.get_metadata_value(metadata, category=category) is not None:
+                add_feature(feature, namespace, version)
+
+        add_feature("CanonicalFormat", namespace="SDK.Marker", version=canonical_format)
+
+        if self.is_fixed_layout:
+            if self.has_pdf_resource:
+                add_feature("yj_pdf_support")
+                add_feature_from_metadata("yj_fixed_layout", "yj_fixed_layout")
+            else:
+                add_feature_from_metadata("yj_fixed_layout", "yj_non_pdf_fixed_layout", version=2)
         else:
-            self.log.warning("CanonicalFormat already present in KPF")
+            if self.has_hdv_image_resource:
+                add_feature("yj_hdv")
 
-        if (not self.is_fixed_layout) and self.get_feature_value("yj_hdv") is None:
-            for fragment in self.fragments.get_all("$164"):
-                if fragment.value.get(IS("$422"), 0) > 1920 or fragment.value.get(IS("$423"), 0) > 1920:
-                    features.append(IonStruct(
-                        IS("$586"), "com.amazon.yjconversion",
-                        IS("$492"), "yj_hdv",
-                        IS("$589"), IonStruct(IS("version"), IonStruct(
-                            IS("$587"), 1,
-                            IS("$588"), 0))))
-                    break
+        add_feature_from_metadata("graphical_highlights", "yj_graphical_highlights")
+        add_feature_from_metadata("yj_textbook", "yj_textbook")
 
         if self.fragments.get("$389") is None:
-            self.log.info("Adding book_navigation")
+            log.info("Adding book_navigation")
 
             book_navigation = []
             for reading_order_name in self.reading_order_names():
@@ -222,11 +233,11 @@ class KpfBook(object):
 
                         i += 1
                 elif nav_type == "$237":
-                    self.log.info("KPF book contains a page list")
+                    log.info("KPF book contains a page list")
                     has_page_list = True
 
             if pages and not has_page_list:
-                self.log.info("Transformed %d KFX landmark entries into a page list" % len(pages))
+                log.info("Transformed %d KFX landmark entries into a page list" % len(pages))
 
                 nav_containers.append(IonAnnotation([IS("$391")], IonStruct(
                         IS("$235"), IS("$237"),
@@ -249,7 +260,7 @@ class KpfBook(object):
                             ftype="$145", fid=content_name,
                             value=IonStruct(IS("name"), content_name, IS("$146"), content_list)))
             else:
-                self.log.warning("Content fragment creation is disabled")
+                log.warning("Content fragment creation is disabled")
 
             map_pos_info = self.collect_position_map_info()
 
@@ -258,14 +269,14 @@ class KpfBook(object):
                 self.verify_position_info(content_pos_info, map_pos_info)
 
             if len(map_pos_info) < 10 and self.is_illustrated_layout:
-                self.log.warning("creating position map (original is missing or incorrect)")
+                log.warning("creating position map (original is missing or incorrect)")
                 map_pos_info = self.collect_content_position_info()
 
             self.is_kpf_prepub = False
             has_spim, has_position_id_offset = self.create_position_map(map_pos_info)
 
             has_yj_location_pid_map = False
-            if self.fragments.get("$550") is None and not (self.is_textbook or self.is_magazine):
+            if self.fragments.get("$550") is None and not (self.is_print_replica or self.is_magazine):
                 loc_info = self.generate_approximate_locations(map_pos_info)
                 has_yj_location_pid_map = self.create_location_map(loc_info)
 
@@ -293,7 +304,7 @@ class KpfBook(object):
                 key = kv.get("$492", "")
                 value = kv.get("$307", "")
                 if not is_known_aux_metadata(key, value):
-                    self.log.warning("Unknown auxiliary_data: %s=%s" % (key, value))
+                    log.warning("Unknown auxiliary_data: %s=%s" % (key, value))
 
         self.check_fragment_usage(rebuild=True, ignore_extra=True)
 
@@ -433,7 +444,7 @@ class KpfBook(object):
     def kpf_add_font_ext(self, filename, raw_font):
         ext = font_file_ext(raw_font)
         if not ext:
-            self.log.warn("font %s has unknown type (possibly obfuscated)" % filename)
+            log.warn("font %s has unknown type (possibly obfuscated)" % filename)
 
         return "%s%s" % (filename, ext)
 

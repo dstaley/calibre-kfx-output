@@ -12,6 +12,7 @@ from .ion import (
         IonDecimal, IonCLOB, IonBLOB, IonString, IonTimestamp, IonTimestampTZ, IonSExp, IonSymbol, IonStruct,
         ION_TIMESTAMP_Y, ION_TIMESTAMP_YM, ION_TIMESTAMP_YMD, ION_TIMESTAMP_YMDHM, ION_TIMESTAMP_YMDHMS,
         ION_TIMESTAMP_YMDHMSF)
+from .message_logging import log
 from .utilities import (quote_name, type_name, UNICODE_PYTHON_NARROW_BUILD)
 
 
@@ -44,8 +45,7 @@ class ParseError(ValueError):
 
 class IonSerial(object):
 
-    def __init__(self, log, symtab=None):
-        self.log = log
+    def __init__(self, symtab=None):
         self.symtab = symtab
 
     def serialize_single_value(self, value):
@@ -83,8 +83,8 @@ class IonText(IonSerial):
     SIGNATURE_STR = "$ion_%d_%d" % (MAJOR_VERSION, MINOR_VERSION)
     SIGNATURE = SIGNATURE_STR.encode("ascii")
 
-    def __init__(self, log, symtab=None):
-        IonSerial.__init__(self, log, symtab)
+    def __init__(self, symtab=None):
+        IonSerial.__init__(self, symtab)
 
         self.indent = 0
         self.file = None
@@ -247,7 +247,7 @@ class IonText(IonSerial):
             return None
 
         if token.text.startswith("null."):
-            self.log.error("TextIonNull deserialized %s to null (typed null not supported)" % token.text)
+            log.error("TextIonNull deserialized %s to null (typed null not supported)" % token.text)
             return None
 
         raise ParseError("Incorrect null value")
@@ -650,7 +650,7 @@ class IonText(IonSerial):
                 raise ParseError("Struct key must be symbol (found %s)" % type_name(key))
 
             if key in value:
-                self.log.error("TextIonStruct: Duplicate field name %s" % key)
+                log.error("TextIonStruct: Duplicate field name %s" % key)
 
                 while key in value:
                     key = IonSymbol(key + "_")

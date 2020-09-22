@@ -87,6 +87,9 @@ if IS_PYTHON2:
             if isinstance(x, bytes):
                 return x
 
+            if isinstance(x, bytearray):
+                return bytes(x)
+
             if isinstance(x, int):
                 return b"\x00" * x
 
@@ -119,7 +122,6 @@ if IS_PYTHON2:
             raise TypeError("bytes_to_list %s" % type(b).__name__)
 
         return [ord(c) for c in list(b)]
-
 else:
 
     bytes_ = bytes

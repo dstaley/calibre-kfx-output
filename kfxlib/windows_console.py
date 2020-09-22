@@ -2,6 +2,7 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 
 import ctypes.wintypes
 
+from .message_logging import log
 
 __license__ = "GPL v3"
 __copyright__ = "2020, John Howell <jhowell@acm.org>"
@@ -18,8 +19,7 @@ CONOUT_FILENAME = "CONOUT$"
 
 
 class WindowsConsole(object):
-    def __init__(self, log):
-        self.log = log
+    def __init__(self):
         self.alternate_console_output_handle = self.current_console_output_handle = None
 
         if AllocConsole():
@@ -27,15 +27,15 @@ class WindowsConsole(object):
 
             window_handle = GetConsoleWindow()
             if window_handle == INVALID_HANDLE_VALUE:
-                self.log.warning("GetConsoleWindow failed %d" % GetLastError())
+                log.warning("GetConsoleWindow failed %d" % GetLastError())
             elif not ShowWindow(window_handle, SW_HIDE):
-                self.log.warning("ShowWindow failed %d" % GetLastError())
+                log.warning("ShowWindow failed %d" % GetLastError())
         else:
             self.allocated_console = False
 
         self.original_console_output_handle = CreateFile(CONOUT_FILENAME)
         if self.original_console_output_handle == INVALID_HANDLE_VALUE:
-            self.log.warning("CreateFile %s failed %d" % (CONOUT_FILENAME, GetLastError()))
+            log.warning("CreateFile %s failed %d" % (CONOUT_FILENAME, GetLastError()))
             return
 
         self.current_console_output_handle = self.original_console_output_handle
@@ -43,25 +43,25 @@ class WindowsConsole(object):
         self.alternate_console_output_handle = CreateConsoleScreenBuffer()
 
         if self.alternate_console_output_handle == INVALID_HANDLE_VALUE:
-            self.log.warning("CreateConsoleScreenBuffer failed %d" % GetLastError())
+            log.warning("CreateConsoleScreenBuffer failed %d" % GetLastError())
             self.alternate_console_output_handle = None
             return
 
         self.csbi = GetConsoleScreenBufferInfo(self.alternate_console_output_handle)
         if self.csbi is None:
-            self.log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
+            log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
             return
 
         if self.csbi.dwSize.X < MIN_COLS or self.csbi.dwSize.Y < MIN_ROWS:
             if not SetConsoleScreenBufferSize(
                     self.alternate_console_output_handle,
                     max(self.csbi.dwSize.X, MIN_COLS), max(self.csbi.dwSize.Y, MIN_ROWS)):
-                self.log.warning("SetConsoleScreenBufferSize failed %d" % GetLastError())
+                log.warning("SetConsoleScreenBufferSize failed %d" % GetLastError())
                 return
 
             self.csbi = GetConsoleScreenBufferInfo(self.alternate_console_output_handle)
             if self.csbi is None:
-                self.log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
+                log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
                 return
 
     def __del__(self):
@@ -70,14 +70,14 @@ class WindowsConsole(object):
     def use_alternate_console_buffer(self):
         if self.alternate_console_output_handle is not None and self.current_console_output_handle != self.alternate_console_output_handle:
             if not SetConsoleActiveScreenBuffer(self.alternate_console_output_handle):
-                self.log.warning("SetConsoleActiveScreenBuffer to alternate_console_output failed %d" % GetLastError())
+                log.warning("SetConsoleActiveScreenBuffer to alternate_console_output failed %d" % GetLastError())
 
             self.current_console_output_handle = self.alternate_console_output_handle
 
     def restore_original_console_buffer(self):
         if self.current_console_output_handle is not None and self.current_console_output_handle != self.original_console_output_handle:
             if not SetConsoleActiveScreenBuffer(self.original_console_output_handle):
-                self.log.warning("SetConsoleActiveScreenBuffer to original_console_output failed %d" % GetLastError())
+                log.warning("SetConsoleActiveScreenBuffer to original_console_output failed %d" % GetLastError())
 
             self.current_console_output_handle = self.original_console_output_handle
 
@@ -89,7 +89,7 @@ class WindowsConsole(object):
 
             self.csbi = GetConsoleScreenBufferInfo(self.alternate_console_output_handle)
             if self.csbi is None:
-                self.log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
+                log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
                 return
 
             if self.csbi.dwCursorPosition.X != last_csbi.dwCursorPosition.X or self.csbi.dwCursorPosition.Y != last_csbi.dwCursorPosition.Y:
@@ -101,13 +101,13 @@ class WindowsConsole(object):
 
         csbi = GetConsoleScreenBufferInfo(self.alternate_console_output_handle)
         if csbi is None:
-            self.log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
+            log.warning("GetConsoleScreenBufferInfo failed %d" % GetLastError())
             return ""
 
         num_columns, num_rows = csbi.dwSize.X, csbi.dwSize.Y
         console_buffer_data = ReadConsoleOutput(self.alternate_console_output_handle, num_columns, num_rows)
         if console_buffer_data is None:
-            self.log.warning("ReadConsoleOutput failed %d" % GetLastError())
+            log.warning("ReadConsoleOutput failed %d" % GetLastError())
             return ""
 
         lines = []
@@ -135,13 +135,13 @@ class WindowsConsole(object):
 
         if self.alternate_console_output_handle is not None:
             if not CloseHandle(self.alternate_console_output_handle):
-                self.log.warning("CloseHandle alternate_console_output failed %d" % GetLastError())
+                log.warning("CloseHandle alternate_console_output failed %d" % GetLastError())
 
             self.alternate_console_output_handle = None
 
         if self.allocated_console:
             if not FreeConsole():
-                self.log.warning("FreeConsole failed %d" % GetLastError())
+                log.warning("FreeConsole failed %d" % GetLastError())
 
             self.allocated_console = False
 

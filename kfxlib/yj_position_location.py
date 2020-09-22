@@ -3,6 +3,7 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 import collections
 
 from .ion import (ion_type, IonAnnotation, IonInt, IonList, IonSExp, IonString, IonStruct, IonSymbol, IS, unannotated)
+from .message_logging import log
 from .utilities import (list_symbols, natural_sort_key, truncate_list, unicode_len)
 from .yj_container import (YJFragment, YJFragmentKey)
 from .yj_structure import APPROXIMATE_PAGE_LIST
@@ -82,14 +83,13 @@ class ConditionalTemplate(object):
 
 
 class MatchReport(object):
-    def __init__(self, logger=None, no_limit=False):
+    def __init__(self, no_limit=False):
         self.count = 0
-        self.logger = logger
         self.limit = 0 if no_limit else MAX_REPORT_ERRORS
 
     def report(self, msg):
         if (not self.limit) or self.count < self.limit:
-            self.logger(msg)
+            log.warning(msg)
 
         self.count += 1
 
@@ -120,7 +120,7 @@ class BookPosLoc(object):
             if abs(reflow_section_size - reflow_section_size_calculated) > 1 + (reflow_section_size_calculated // 50):
                 if not (self.get_metadata_value("file_creator", category="kindle_audit_metadata") == "KC" and
                         reflow_section_size > reflow_section_size_calculated):
-                    self.log.warning("Feature/content mismatch: reflow-section-size is %s, expected %s for max section pid count %d" % (
+                    log.warning("Feature/content mismatch: reflow-section-size is %s, expected %s for max section pid count %d" % (
                             reflow_section_size, reflow_section_size_calculated, max_section_pid_count))
 
     def collect_content_position_info(self):
@@ -193,9 +193,9 @@ class BookPosLoc(object):
                             current_eid = eid
                             if current_eid in eid_section:
                                 if eid_section[current_eid] == section_name:
-                                    self.log.error("duplicate eid %s in section %s" % (current_eid, section_name))
+                                    log.error("duplicate eid %s in section %s" % (current_eid, section_name))
                                 else:
-                                    self.log.error("duplicate eid %s in sections %s and %s" % (current_eid, eid_section[current_eid], section_name))
+                                    log.error("duplicate eid %s in sections %s and %s" % (current_eid, eid_section[current_eid], section_name))
 
                             eid_section[current_eid] = section_name
                         else:
@@ -213,7 +213,7 @@ class BookPosLoc(object):
 
                     if typ in ["$596", "$271", "$272", "$274"]:
                         have_content(current_eid, 1, advance)
-                    elif typ in ["$270", "$277", "$269"]:
+                    elif typ in ["$270", "$277", "$269", "$151"]:
                         for ct in ["$145", "$146", "$176"]:
                             if ct in data:
                                 break
@@ -297,11 +297,11 @@ class BookPosLoc(object):
                     self.cpi_processing_story_ = False
                     processed_story_names.add(story_name)
                 else:
-                    self.log.error("story %s appears in multiple sections" % story_name)
+                    log.error("story %s appears in multiple sections" % story_name)
 
             for ci in eid_cond_info:
                 if ci.pos_info:
-                    self.log.error("left over conditional template info: %s" % ci)
+                    log.error("left over conditional template info: %s" % ci)
 
             del eid_cond_info[:]
 
@@ -312,12 +312,12 @@ class BookPosLoc(object):
             collect_section_position_info(section_name)
 
         for section_name, stories in section_stories.items():
-            if not (len(stories) == 1 or (len(stories) == 2 and self.is_textbook)):
-                self.log.error("section %s has stories %s" % (section_name, list_symbols(stories)))
+            if not (len(stories) == 1 or (len(stories) == 2 and self.is_print_replica)):
+                log.error("section %s has stories %s" % (section_name, list_symbols(stories)))
 
         for story, section_names in story_sections.items():
             if len(section_names) != 1:
-                self.log.error("story %s is in sections %s" % (story, list_symbols(section_names)))
+                log.error("story %s is in sections %s" % (story, list_symbols(section_names)))
 
         return pos_info
 
@@ -327,7 +327,7 @@ class BookPosLoc(object):
             position = fragment.value["$183"]
             return (position["$155"], position.get("$143", 0))
 
-        self.log.error("Failed to locate position for anchor: %s" % anchor)
+        log.error("Failed to locate position for anchor: %s" % anchor)
         return None
 
     def has_non_image_render_inline(self):
@@ -385,7 +385,7 @@ class BookPosLoc(object):
                 pi_type = ion_type(pi)
                 if pi_type is IonList:
                     if len(pi) < 2 or len(pi) > 3:
-                        self.log.error("Bad section_position_id_map list at %d: %s" % (i, repr(fragment)))
+                        log.error("Bad section_position_id_map list at %d: %s" % (i, repr(fragment)))
                         break
 
                     next_pid = pi[0]
@@ -398,14 +398,14 @@ class BookPosLoc(object):
                 elif pi_type is IonStruct:
                     extra_keys = set(pi.keys()) - {"$184", "$185", "$143"}
                     if extra_keys:
-                        self.log.error("Bad section_position_id_map list keys %s at %d: %s" % (list_symbols(extra_keys), i, repr(fragment)))
+                        log.error("Bad section_position_id_map list keys %s at %d: %s" % (list_symbols(extra_keys), i, repr(fragment)))
                         break
 
                     next_pid = pi["$184"]
                     next_eid = pi["$185"]
                     next_offset = pi.get("$143", 0)
                 else:
-                    self.log.error("Bad section_position_id_map entry type at %d: %s" % (i, repr(fragment)))
+                    log.error("Bad section_position_id_map entry type at %d: %s" % (i, repr(fragment)))
                     break
 
                 if pid_is_really_len:
@@ -417,7 +417,7 @@ class BookPosLoc(object):
                 if i > 0:
                     if section_name is not None:
                         if eid in eid_section and eid_section[eid] != section_name:
-                            self.log.error("section_position_id_map eid %s expected in section %s found in %s" % (
+                            log.error("section_position_id_map eid %s expected in section %s found in %s" % (
                                     eid, eid_section[eid], section_name))
                         eid_section[eid] = section_name
 
@@ -430,9 +430,9 @@ class BookPosLoc(object):
                     if eid_offset != pid - eid_start_pos[eid]:
                         if self.is_conditional_structure or has_mathml or self.has_non_image_render_inline():
                             if eid_offset <= prev_eid_offset.get(eid, -1):
-                                self.log.error("position_id_map eid %s offset is %d, expected > %d" % (eid, eid_offset, prev_eid_offset.get[eid]))
+                                log.error("position_id_map eid %s offset is %d, expected > %d" % (eid, eid_offset, prev_eid_offset.get[eid]))
                         else:
-                            self.log.warning("position map eid %s offset is %d, expected %d" % (eid, eid_offset, pid - eid_start_pos[eid]))
+                            log.warning("position map eid %s offset is %d, expected %d" % (eid, eid_offset, pid - eid_start_pos[eid]))
 
                     pos_info.append(ContentChunk(
                                 pid + section_start_pid, eid, eid_offset, next_pid - pid,
@@ -442,10 +442,10 @@ class BookPosLoc(object):
                 pid, eid, eid_offset = next_pid, self.symbol_id(next_eid) if int_eid else next_eid, next_offset
 
             if eid != 0 or eid_offset != 0:
-                self.log.error("section_position_id_map last eid is %d+%d (should be zero)" % (eid, eid_offset))
+                log.error("section_position_id_map last eid is %d+%d (should be zero)" % (eid, eid_offset))
 
             if verify_section_length is not None and pid != verify_section_length:
-                self.log.error("section_position_id_map section %s length %d, expected %d" % (section_name, pid, verify_section_length))
+                log.error("section_position_id_map section %s length %d, expected %d" % (section_name, pid, verify_section_length))
 
         if self.is_dictionary or self.is_kpf_prepub:
             fragment = self.fragments.get("$611", first=True)
@@ -459,13 +459,13 @@ class BookPosLoc(object):
                 for section_name in section_names:
                     spim_fragment = self.fragments[YJFragmentKey(ftype="$609", fid=str(section_name) + "-spm")]
                     if spim_fragment is None:
-                        self.log.error("section_position_id_map missing for section %s" % section_name)
+                        log.error("section_position_id_map missing for section %s" % section_name)
                         continue
 
                     spim = spim_fragment.value
                     spim_section_name = spim["$174"]
                     if spim_section_name != section_name:
-                        self.log.error("section_position_id_map for section %s has section %s" % (section_name, spim_section_name))
+                        log.error("section_position_id_map for section %s has section %s" % (section_name, spim_section_name))
 
                     process_spim(spim["$181"], section_start_pid, section_name,
                                  add_section_length=section_pid_count[section_name], one_based_pid=True, int_eid=False)
@@ -484,19 +484,19 @@ class BookPosLoc(object):
 
                 esm_missing = spim_eids - esm_eids
                 if esm_missing:
-                    self.log.warning("yj.eidhash_eid_section_map has %d eids, %d missing: %s" % (
+                    log.warning("yj.eidhash_eid_section_map has %d eids, %d missing: %s" % (
                             len(esm_eids), len(esm_missing),
                             ", ".join(truncate_list(["%s/%s" % xx for xx in sorted(list(esm_missing))]))))
 
                 spim_missing = esm_eids - spim_eids
                 if spim_missing:
-                    self.log.warning("section_position_id_map has %d eids, %d missing: %s" % (
+                    log.warning("section_position_id_map has %d eids, %d missing: %s" % (
                             len(spim_eids), len(spim_missing),
                             ", ".join(truncate_list(["%s/%s" % xx for xx in sorted(list(spim_missing))]))))
 
             for ftype in ["$264", "$265"]:
                 if self.fragments.get(ftype, first=True):
-                    self.log.error("Excess mapping fragment: %s" % ftype)
+                    log.error("Excess mapping fragment: %s" % ftype)
         else:
             fragment = self.fragments.get("$264", first=True)
             if fragment is not None:
@@ -517,10 +517,10 @@ class BookPosLoc(object):
                             eid_section[eid] = section_name
 
                 if extra_sections:
-                    self.log.error("position_map has extra sections: %s" % list_symbols(extra_sections))
+                    log.error("position_map has extra sections: %s" % list_symbols(extra_sections))
 
                 if missing_sections:
-                    self.log.error("position_map has missing sections: %s" % list_symbols(missing_sections))
+                    log.error("position_map has missing sections: %s" % list_symbols(missing_sections))
 
             has_spim = False
             fragment = self.fragments.get("$265", first=True)
@@ -535,18 +535,18 @@ class BookPosLoc(object):
                         section_start_pid = sect_map["$184"]
 
                         if section_start_pid != book_pid:
-                            self.log.error("section %s start pid %d, expected %d" % (section_name, section_start_pid, book_pid))
+                            log.error("section %s start pid %d, expected %d" % (section_name, section_start_pid, book_pid))
 
                         spim_fragment = self.fragments.get(YJFragmentKey(ftype="$609", fid=section_name))
                         if spim_fragment is None:
-                            self.log.error("section_position_id_map missing for section %s" % section_name)
+                            log.error("section_position_id_map missing for section %s" % section_name)
                             continue
 
                         spim = spim_fragment.value
                         spim_section_name = spim["$174"]
 
                         if spim_section_name != section_name:
-                            self.log.error("section_position_id_map for section %s has section %s" % (section_name, spim_section_name))
+                            log.error("section_position_id_map for section %s has section %s" % (section_name, spim_section_name))
 
                         section_length = sect_map["$144"]
                         process_spim(spim["$181"], section_start_pid, section_name,
@@ -558,23 +558,23 @@ class BookPosLoc(object):
 
                 extra_eids = position_map_eids - position_id_map_eids
                 if extra_eids:
-                    self.log.error("position_map has extra eids: %s" % list_symbols(extra_eids))
+                    log.error("position_map has extra eids: %s" % list_symbols(extra_eids))
 
                 missing_eids = position_id_map_eids - position_map_eids
                 if missing_eids:
-                    self.log.error("position_map has missing eids: %s" % list_symbols(missing_eids))
+                    log.error("position_map has missing eids: %s" % list_symbols(missing_eids))
 
             positionMaps_fc = self.get_feature_value("kfxgen.positionMaps", namespace="format_capabilities")
             if (positionMaps_fc == 2) is not has_spim:
-                self.log.error("FC kfxgen.positionMaps=%s with section_position_id_map=%s" % (positionMaps_fc, has_spim))
+                log.error("FC kfxgen.positionMaps=%s with section_position_id_map=%s" % (positionMaps_fc, has_spim))
 
             pidMapWithOffset_fc = self.get_feature_value("kfxgen.pidMapWithOffset", namespace="format_capabilities")
             if (pidMapWithOffset_fc == 1) is not self._has_eid_offset:
-                self.log.error("FC kfxgen.pidMapWithOffset=%s with eid offset present=%s" % (pidMapWithOffset_fc, self._has_eid_offset))
+                log.error("FC kfxgen.pidMapWithOffset=%s with eid offset present=%s" % (pidMapWithOffset_fc, self._has_eid_offset))
 
             for ftype in ["$611", "$610"]:
                 if self.fragments.get(ftype, first=True):
-                    self.log.error("Excess mapping fragment: %s" % ftype)
+                    log.error("Excess mapping fragment: %s" % ftype)
 
         return pos_info
 
@@ -609,7 +609,7 @@ class BookPosLoc(object):
 
         content = PosData(content_pos_info, "content")
         map = PosData(map_pos_info, "map")
-        report = MatchReport(self.log.warning, REPORT_POSITION_DATA)
+        report = MatchReport(REPORT_POSITION_DATA)
         compare_pids = True
 
         while not (map.at_end() and content.at_end()):
@@ -623,7 +623,7 @@ class BookPosLoc(object):
 
             if map.chunk().__eq__(content.chunk(), compare_pids=compare_pids):
                 if REPORT_POSITION_DATA:
-                    self.log.info("position_id at %sidx=%d %s%s" % (
+                    log.info("position_id at %sidx=%d %s%s" % (
                         ("cidx=%d " % content.index) if content.index != map.index else "", map.index,
                         ("cpid=%d " % content.chunk().pid) if content.chunk().pid != map.chunk().pid else "",
                         repr(map.chunk())))
@@ -651,7 +651,7 @@ class BookPosLoc(object):
     def create_position_map(self, pos_info):
 
         if self.is_dictionary or self.is_kpf_prepub:
-            self.log.warning("Position map creation for KPF or dictionary not supported")
+            log.warning("Position map creation for KPF or dictionary not supported")
 
             for fragment in list(self.fragments):
                 if fragment.ftype in ["$264", "$265", "$610"]:
@@ -746,14 +746,14 @@ class BookPosLoc(object):
     def collect_location_map_info(self, pos_info):
         loc_info = []
         self.prev_loc_ = None
-        report = MatchReport(self.log.warning, REPORT_LOCATION_DATA)
+        report = MatchReport(REPORT_LOCATION_DATA)
 
         def add_loc(pid, eid, eid_offset):
             loc = ContentChunk(pid, eid, eid_offset, 0, None)
             loc_info.append(loc)
 
             if REPORT_LOCATION_DATA:
-                self.log.info("location %d %s" % (i+1, loc))
+                log.info("location %d %s" % (i+1, loc))
 
             if self.prev_loc_:
                 self.prev_loc_.length = pid - self.prev_loc_.pid
@@ -772,7 +772,7 @@ class BookPosLoc(object):
                 for i, lm in enumerate(fragment.value[0]["$182"]):
                     extra_keys = set(lm.keys()) - {"$155", "$143"}
                     if extra_keys:
-                        self.log.error("Bad location_map list keys %s at %d: %s" % (list_symbols(extra_keys), i, repr(fragment)))
+                        log.error("Bad location_map list keys %s at %d: %s" % (list_symbols(extra_keys), i, repr(fragment)))
                         break
 
                     eid = lm["$155"]
@@ -780,13 +780,13 @@ class BookPosLoc(object):
 
                     pid = self.pid_for_eid(eid, eid_offset, pos_info)
                     if pid is None:
-                        self.log.error("location_map %d failed to locate eid %s offset %d" % (i+1, eid, eid_offset))
+                        log.error("location_map %d failed to locate eid %s offset %d" % (i+1, eid, eid_offset))
                     else:
                         add_loc(pid, eid, eid_offset)
 
                 end_add_loc()
             else:
-                self.log.error("Bad location_map: %s" % repr(fragment))
+                log.error("Bad location_map: %s" % repr(fragment))
 
         fragment = self.fragments.get("$621", first=True)
         has_yj_location_pid_map = fragment is not None
@@ -802,26 +802,26 @@ class BookPosLoc(object):
                                             loc.pid, lpm_pid, i+1, loc.eid, loc.eid_offset))
 
                     if len(loc_info) != len(location_pids):
-                        self.log.error("location_map has %d locations but yj.location_pid_map has %d" % (len(loc_info), len(location_pids)))
+                        log.error("location_map has %d locations but yj.location_pid_map has %d" % (len(loc_info), len(location_pids)))
                 else:
                     for i, pid in enumerate(location_pids):
                         eid, eid_offset = self.eid_for_pid(pid, pos_info)
                         if eid is None:
-                            self.log.error("yj.location_pid_map %d failed to locate eid for pid %d" % (i+1, pid))
+                            log.error("yj.location_pid_map %d failed to locate eid for pid %d" % (i+1, pid))
                         else:
                             add_loc(pid, eid, eid_offset)
 
                     end_add_loc()
             else:
-                self.log.error("Bad yj.location_pid_map: %s" % repr(fragment))
+                log.error("Bad yj.location_pid_map: %s" % repr(fragment))
 
         report.final()
 
         if not (self.is_dictionary or self.is_kpf_prepub):
             positionMaps_fc = self.get_feature_value("kfxgen.positionMaps", namespace="format_capabilities")
-            if has_yj_location_pid_map and (positionMaps_fc != 2 or self.is_textbook):
-                self.log.error("yj.location_pid_map with FC kfxgen.positionMaps=%s textbook=%s" % (
-                        positionMaps_fc, self.is_textbook))
+            if has_yj_location_pid_map and (positionMaps_fc != 2 or self.is_print_replica):
+                log.error("yj.location_pid_map with FC kfxgen.positionMaps=%s print_replica=%s" % (
+                        positionMaps_fc, self.is_print_replica))
 
         return loc_info
 
@@ -855,7 +855,7 @@ class BookPosLoc(object):
 
             pid += chunk.length
 
-        self.log.info("Built approximate location_map with %d locations" % len(loc_info))
+        log.info("Built approximate location_map with %d locations" % len(loc_info))
         return loc_info
 
     def create_location_map(self, loc_info):
@@ -877,16 +877,16 @@ class BookPosLoc(object):
     def create_approximate_page_list(self, desired_num_pages):
 
         if self.cde_type not in [None, "EBOK", "EBSP", "PDOC"]:
-            self.log.error("Cannot create page numbers for KFX %s" % self.cde_type)
+            log.error("Cannot create page numbers for KFX %s" % self.cde_type)
             return
 
         if self.is_dictionary:
-            self.log.error("Cannot create page numbers for KFX dictionary")
+            log.error("Cannot create page numbers for KFX dictionary")
             return
 
         reading_order_names = self.reading_order_names()
         if len(reading_order_names) != 1:
-            self.log.error("Cannot create page numbers - Failed to locate single default reading order")
+            log.error("Cannot create page numbers - Failed to locate single default reading order")
             return
 
         reading_order_name = reading_order_names[0]
@@ -909,7 +909,7 @@ class BookPosLoc(object):
 
                             nav_container_name = str(nav_container.get("$239"))
                             real_num_pages = len(nav_container["$247"])
-                            self.log.info("A list of %d %s pages is already present with %s pages desired" % (
+                            log.info("A list of %d %s pages is already present with %s pages desired" % (
                                     real_num_pages,
                                     "approximate" if nav_container_name == APPROXIMATE_PAGE_LIST else "real",
                                     str(desired_num_pages) if desired_num_pages else "auto"))
@@ -922,7 +922,7 @@ class BookPosLoc(object):
                             break
                     break
             else:
-                self.log.error("Cannot create page numbers - Failed to locate book_navigation for reading order %s" % reading_order_name)
+                log.error("Cannot create page numbers - Failed to locate book_navigation for reading order %s" % reading_order_name)
                 return
 
         section_names = self.ordered_section_names()
@@ -935,18 +935,18 @@ class BookPosLoc(object):
                 self.walk_fragment(fragment, set(), set(), page_template_eids, set())
 
         if not (section_names or pos_info):
-            self.log.error("Cannot produce approximate page numbers - No content found for reading order %s" % reading_order_name)
+            log.error("Cannot produce approximate page numbers - No content found for reading order %s" % reading_order_name)
             return
 
         if self.is_fixed_layout:
             pages, new_section_page_count = self.determine_approximate_pages(
                     pos_info, page_template_eids, section_names[0], 999999, True)
-            self.log.info("Created %d fixed layout page numbers" % len(pages))
+            log.info("Created %d fixed layout page numbers" % len(pages))
 
         elif desired_num_pages == 0:
             pages, new_section_page_count = self.determine_approximate_pages(
                     pos_info, page_template_eids, section_names[0], TYPICAL_POSITIONS_PER_PAGE)
-            self.log.info("Created %d approximate page numbers (%d for chapters)" % (len(pages), new_section_page_count))
+            log.info("Created %d approximate page numbers (%d for chapters)" % (len(pages), new_section_page_count))
 
         else:
             min_ppp = MIN_POSITIONS_PER_PAGE
@@ -963,12 +963,12 @@ class BookPosLoc(object):
                 else:
                     max_ppp = positions_per_page - 1
 
-            self.log.info("Created %d approximate page numbers (%d for chapters) using %d characters per page for %d desired pages" % (
+            log.info("Created %d approximate page numbers (%d for chapters) using %d characters per page for %d desired pages" % (
                         len(pages), new_section_page_count, positions_per_page, desired_num_pages))
 
         if pages and add_pages:
             if book_navigation is None:
-                self.log.info("Adding book_navigation")
+                log.info("Adding book_navigation")
                 book_nav = IonStruct()
 
                 if reading_order_name is not None:

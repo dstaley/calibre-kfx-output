@@ -158,8 +158,7 @@ CONTAINER_FRAGMENT_TYPES = [
 
 class YJContainer(object):
 
-    def __init__(self, log, symtab, datafile=None, fragments=None):
-        self.log = log
+    def __init__(self, symtab, datafile=None, fragments=None):
         self.symtab = symtab
         self.datafile = datafile
         self.fragments = YJFragmentList() if fragments is None else fragments

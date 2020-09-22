@@ -18,14 +18,14 @@ __copyright__ = "2020, John Howell <jhowell@acm.org>"
 class IonTextContainer(YJContainer):
     def deserialize(self, ignore_drm=False):
         self.fragments.clear()
-        for annot in IonText(self.log, self.symtab).deserialize_multiple_values(self.datafile.get_data(), import_symbols=True):
+        for annot in IonText(self.symtab).deserialize_multiple_values(self.datafile.get_data(), import_symbols=True):
             if not isinstance(annot, IonAnnotation):
                 raise Exception("deserialize kfx ion text expected IonAnnotation but found %s" % type_name(annot))
 
             self.fragments.append(YJFragment(annot))
 
     def serialize(self):
-        return IonText(self.log, self.symtab).serialize_multiple_values(self.get_fragments())
+        return IonText(self.symtab).serialize_multiple_values(self.get_fragments())
 
 
 class ZipUnpackContainer(YJContainer):
@@ -35,7 +35,7 @@ class ZipUnpackContainer(YJContainer):
         with self.datafile.as_ZipFile() as zf:
             for info in zf.infolist():
                 if info.filename == "book.ion":
-                    IonTextContainer(self.log, self.symtab, datafile=DataFile(info.filename, data=zf.read(info)),
+                    IonTextContainer(self.symtab, datafile=DataFile(info.filename, data=zf.read(info)),
                                      fragments=self.fragments).deserialize()
                     break
             else:
@@ -87,7 +87,7 @@ class ZipUnpackContainer(YJContainer):
         with zipfile.ZipFile(zfile, "w", compression=zipfile.ZIP_DEFLATED) as zf:
 
             zf.writestr("book.ion", IonTextContainer(
-                    self.log, self.symtab, fragments=self.fragments.filtered(omit_resources=True)).serialize())
+                    self.symtab, fragments=self.fragments.filtered(omit_resources=True)).serialize())
 
             for ftype in ["$417", "$418"]:
                 for fragment in self.fragments.get_all(ftype):

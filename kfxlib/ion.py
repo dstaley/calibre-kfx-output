@@ -3,11 +3,11 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 import collections
 import datetime
 import decimal
-import hashlib
 import math
 import re
 
-from .utilities import (type_name)
+from .message_logging import log
+from .utilities import (sha1, type_name)
 
 from .python_transition import (IS_PYTHON2, bytes_to_hex)
 if IS_PYTHON2:
@@ -136,12 +136,7 @@ class IonBLOB(bytes):
         raise Exception("IonBLOB __ge__ not implemented")
 
     def __repr__(self):
-        return "*** %d byte BLOB %s ***" % (len(self), bytes_to_hex(self.sha1()))
-
-    def sha1(self):
-        sha1 = hashlib.sha1()
-        sha1.update(self)
-        return sha1.digest()
+        return "*** %d byte BLOB %s ***" % (len(self), bytes_to_hex(sha1(self)))
 
     def ascii_data(self):
         if len(self) > MAX_ASCII_DATA_SIZE:
@@ -317,7 +312,7 @@ def unannotated(value):
     return value.value if isinstance(value, IonAnnotation) else value
 
 
-def ion_data_eq(f1, f2, msg="Ion data mismatch", log=None):
+def ion_data_eq(f1, f2, msg="Ion data mismatch", report_errors=True):
     def ion_data_eq_(f1, f2, ctx):
         data_type = ion_type(f1)
 
@@ -376,7 +371,7 @@ def ion_data_eq(f1, f2, msg="Ion data mismatch", log=None):
     ctx = []
     success = ion_data_eq_(f1, f2, ctx)
 
-    if (not success) and log is not None:
+    if report_errors and not success:
         log.error("%s: %s" % (msg, ", ".join(ctx[::-1])))
 
     return success

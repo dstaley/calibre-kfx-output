@@ -14,6 +14,7 @@ except ImportError:
 
 from .ion import (ion_type, IonAnnotation, IonBLOB, IonInt, IonList, IonSExp, IonString, IonStruct, IS)
 from .ion_binary import (IonBinary)
+from .message_logging import log
 from .utilities import (
         DataFile, bytes_to_separated_hex, json_deserialize, json_serialize, KFXDRMError, natural_sort_key, temp_filename,
         Deserializer, ZIP_SIGNATURE)
@@ -32,7 +33,7 @@ __copyright__ = "2020, John Howell <jhowell@acm.org>"
 
 
 DEBUG = False
-RETAIN_KDX_ID_ANNOT_IF_PURE = False
+RETAIN_KFX_ID_ANNOT = False
 
 RESOURCE_DIRECTORY = "resources"
 DICTIONARY_RULES_FILENAME = "DictionaryRules.ion"
@@ -46,8 +47,8 @@ class KpfContainer(YJContainer):
     KDF_SIGNATURE = SQLITE_SIGNATURE
     db_timeout = 30
 
-    def __init__(self, log, symtab, datafile=None, fragments=None, book=None):
-        YJContainer.__init__(self, log, symtab, datafile=datafile, fragments=fragments)
+    def __init__(self, symtab, datafile=None, fragments=None, book=None):
+        YJContainer.__init__(self, symtab, datafile=datafile, fragments=fragments)
         self.book = book
 
     def deserialize(self, ignore_drm=False):
@@ -78,7 +79,7 @@ class KpfContainer(YJContainer):
         else:
             self.kdf_datafile = self.datafile
 
-        unwrapped_kdf_datafile = SQLiteFingerprintWrapper(self.log, self.kdf_datafile).remove()
+        unwrapped_kdf_datafile = SQLiteFingerprintWrapper(self.kdf_datafile).remove()
 
         db_filename = (unwrapped_kdf_datafile.name if unwrapped_kdf_datafile.is_real_file and not self.book.is_netfs else
                        temp_filename("kdf", unwrapped_kdf_datafile.get_data()))
@@ -113,7 +114,7 @@ class KpfContainer(YJContainer):
             self.book.is_dictionary = True
             for namespace, index_name, property in cursor.execute("SELECT * FROM index_info;"):
                 if namespace != "dictionary" or property != "yj.dictionary.term":
-                    self.log.error("unexpected index_info: namespace=%s, index_name=%s, property=%s" % (namespace, index_name, property))
+                    log.error("unexpected index_info: namespace=%s, index_name=%s, property=%s" % (namespace, index_name, property))
 
                 table_name = "index_%s_%s" % (namespace, index_name)
                 index_schema = ("CREATE TABLE %s ([%s] char(256),  id char(40), "
@@ -134,11 +135,11 @@ class KpfContainer(YJContainer):
                         if dictionary_term < first_head_word or not first_head_word:
                             first_head_word = dictionary_term
 
-                    self.log.info("Dictionary %s table has %d entries with %d terms and %d definitions" % (
+                    log.info("Dictionary %s table has %d entries with %d terms and %d definitions" % (
                             table_name, num_entries, len(index_words), len(index_kfx_ids)))
 
                 else:
-                    self.log.error("KPF database is missing the '%s' table" % table_name)
+                    log.error("KPF database is missing the '%s' table" % table_name)
 
         self.eid_symbol = {}
         KFXID_TRANSLATION_SCHEMA = "CREATE TABLE kfxid_translation(eid INTEGER, kfxid char(40), primary key(eid)) without rowid"
@@ -159,7 +160,7 @@ class KpfContainer(YJContainer):
                 elif key == "element_type":
                     self.element_type[id] = value
                 else:
-                    self.log.error("fragment_property has unknown key: id=%s key=%s value=%s" % (id, key, value))
+                    log.error("fragment_property has unknown key: id=%s key=%s value=%s" % (id, key, value))
 
         self.max_eid_in_sections = None
         FRAGMENTS_SCHEMA = "CREATE TABLE fragments(id char(40), payload_type char(10), payload_value blob, primary key (id))"
@@ -174,18 +175,18 @@ class KpfContainer(YJContainer):
                         pass
                     elif id == "$ion_symbol_table":
                         self.symtab.creating_yj_local_symbols = True
-                        sym_import = IonBinary(self.log, self.symtab).deserialize_annotated_value(
+                        sym_import = IonBinary(self.symtab).deserialize_annotated_value(
                                 payload_data, expect_annotation="$ion_symbol_table", import_symbols=True)
                         self.symtab.creating_yj_local_symbols = False
                         if DEBUG:
-                            self.log.info("kdf symbol import = %s" % json_serialize(sym_import))
+                            log.info("kdf symbol import = %s" % json_serialize(sym_import))
 
                         self.fragments.append(YJFragment(sym_import))
                         break
                     else:
-                        max_id = IonBinary(self.log, self.symtab).deserialize_single_value(payload_data)
+                        max_id = IonBinary(self.symtab).deserialize_single_value(payload_data)
                         if DEBUG:
-                            self.log.info("kdf max_id = %d" % max_id)
+                            log.info("kdf max_id = %d" % max_id)
 
                         self.symtab.clear()
                         self.symtab.import_shared_symbol_table("YJ_symbols", max_id=max_id - len(SYSTEM_SYMBOL_TABLE.symbols))
@@ -205,11 +206,11 @@ class KpfContainer(YJContainer):
 
                     elif id == "max_eid_in_sections":
                         ftype = None
-                        self.max_eid_in_sections = IonBinary(self.log, self.symtab).deserialize_single_value(payload_data)
+                        self.max_eid_in_sections = IonBinary(self.symtab).deserialize_single_value(payload_data)
                         if self.book.is_dictionary:
                             pass
                         else:
-                            self.log.warning("Unexpected max_eid_in_sections for non-dictionary: %d" % self.max_eid_in_sections)
+                            log.warning("Unexpected max_eid_in_sections for non-dictionary: %d" % self.max_eid_in_sections)
 
                     elif not payload_data.startswith(IonBinary.SIGNATURE):
                         ftype = None
@@ -218,18 +219,18 @@ class KpfContainer(YJContainer):
 
                     elif len(payload_data) == len(IonBinary.SIGNATURE):
                         if id != "book_navigation":
-                            self.log.warning("Ignoring empty %s fragment" % id)
+                            log.warning("Ignoring empty %s fragment" % id)
 
                     else:
-                        value = IonBinary(self.log, self.symtab).deserialize_annotated_value(payload_data)
+                        value = IonBinary(self.symtab).deserialize_annotated_value(payload_data)
 
                         if not isinstance(value, IonAnnotation):
-                            self.log.error("KDF fragment id=%s is missing annotation: %s" % (id, repr(value)))
+                            log.error("KDF fragment id=%s is missing annotation: %s" % (id, repr(value)))
                             continue
                         elif len(value.annotations) == 2 and value.annotations[1] == "$608":
                             pass
                         elif len(value.annotations) > 1:
-                            self.log.error("KDF fragment should have one annotation: %s" % repr(value))
+                            log.error("KDF fragment should have one annotation: %s" % repr(value))
 
                         ftype = value.annotations[0]
 
@@ -248,10 +249,10 @@ class KpfContainer(YJContainer):
                         self.fragments.append(YJFragment(ftype=ftype, fid=self.create_local_symbol(id), value=IonBLOB(resource_data)))
 
                 else:
-                    self.log.error("Unexpected KDF payload_type=%s, id=%s, value=%d bytes" % (payload_type, id, len(payload_value)))
+                    log.error("Unexpected KDF payload_type=%s, id=%s, value=%d bytes" % (payload_type, id, len(payload_value)))
 
         else:
-            self.log.error("KPF database is missing the 'fragments' table")
+            log.error("KPF database is missing the 'fragments' table")
 
         GC_FRAGMENT_PROPERTIES_SCHEMA = ("CREATE TABLE gc_fragment_properties(id varchar(40), key varchar(40), "
                                          "value varchar(40), primary key (id, key, value)) without rowid")
@@ -271,11 +272,11 @@ class KpfContainer(YJContainer):
                 format_capabilities = [IonStruct(IS("$492"), key, IS("version"), version) for key, version in capabilities]
                 self.fragments.append(YJFragment(ftype="$593", value=format_capabilities))
         else:
-            self.log.error("KPF database is missing the 'capabilities' table")
+            log.error("KPF database is missing the 'capabilities' table")
 
         if len(schema) > 0:
             for s in list(schema):
-                self.log.error("Unexpected KDF database schema: %s" % s)
+                log.error("Unexpected KDF database schema: %s" % s)
 
         cursor.close()
         conn.close()
@@ -319,7 +320,7 @@ class KpfContainer(YJContainer):
             return resource_datafile.get_data()
         except Exception:
             if report_missing:
-                self.log.error("Missing resource in KPF file: %s" % filename)
+                log.error("Missing resource in KPF file: %s" % filename)
 
             return None
 
@@ -340,9 +341,9 @@ class KpfContainer(YJContainer):
                         if value is not None:
                             return value
                         else:
-                            self.log.error("Undefined kfx_id annotation eid: %d" % val)
+                            log.error("Undefined kfx_id annotation eid: %d" % val)
                     else:
-                        self.log.error("Unexpected data type for kfx_id annotation: %s" % val_type)
+                        log.error("Unexpected data type for kfx_id annotation: %s" % val_type)
 
                     return val
 
@@ -363,7 +364,7 @@ class KpfContainer(YJContainer):
 
             return None
 
-        if not (RETAIN_KDX_ID_ANNOT_IF_PURE and self.book.pure):
+        if not RETAIN_KFX_ID_ANNOT:
             process(data)
 
         return data
@@ -378,8 +379,7 @@ class SQLiteFingerprintWrapper(object):
 
     FINGERPRINT_SIGNATURE = b"\xfa\x50\x0a\x5f"
 
-    def __init__(self, log, datafile):
-        self.log = log
+    def __init__(self, datafile):
         self.datafile = datafile
 
     def remove(self):
@@ -397,13 +397,13 @@ class SQLiteFingerprintWrapper(object):
 
             signature = fingerprint.extract(4)
             if signature != self.FINGERPRINT_SIGNATURE:
-                self.log.error("Unexpected fingerprint %d signature: %s" % (fingerprint_count, bytes_to_separated_hex(signature)))
+                log.error("Unexpected fingerprint %d signature: %s" % (fingerprint_count, bytes_to_separated_hex(signature)))
                 return self.datafile
 
             data = data[:data_offset] + data[data_offset + self.FINGERPRINT_RECORD_LEN:]
             fingerprint_count += 1
             data_offset += self.DATA_RECORD_LEN * self.DATA_RECORD_COUNT
 
-        self.log.info("Removed %d KDF SQLite file fingerprint(s)" % fingerprint_count)
+        log.info("Removed %d KDF SQLite file fingerprint(s)" % fingerprint_count)
 
         return DataFile(self.datafile.name + "-unwrapped", data)
