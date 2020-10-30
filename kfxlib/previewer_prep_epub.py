@@ -107,7 +107,7 @@ class AdobeAlgorithm(object):
     ofs_key_len = 16
 
     @staticmethod
-    def key_of_indent(identifier):
+    def key_of_ident(identifier):
         hex_key = identifier.lower().replace("urn:uuid:", "").replace("-", "")
         if not re.match("^[0-9a-f]{32}$", hex_key):
             return None
@@ -121,7 +121,7 @@ class IDPFAlgorithm(object):
     ofs_key_len = 20
 
     @staticmethod
-    def key_of_indent(identifier):
+    def key_of_ident(identifier):
         return sha1(re.sub("[ \n\r\t]", "", identifier).encode("utf-8"))
 
 
@@ -752,7 +752,7 @@ class EpubPrep(object):
 
     def deobfuscate(self, f, algorithm, font_key=None, identifier=None):
         if font_key is None:
-            font_key = algorithm.key_of_indent(identifier)
+            font_key = algorithm.key_of_ident(identifier)
 
         if font_key is None:
             return False

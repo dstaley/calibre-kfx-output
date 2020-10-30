@@ -413,7 +413,7 @@ class disable_debug_log:
 
 
 def font_file_ext(data, default=""):
-    if data[0:4] == b"\x00\x01\x00\x00":
+    if data[0:4] in {b"\x00\x01\x00\x00", b"true", b"typ1"}:
         return ".ttf"
 
     if data[0:4] == b"OTTO":
@@ -422,7 +422,7 @@ def font_file_ext(data, default=""):
     if data[0:4] == b"wOFF":
         return ".woff"
 
-    if data[34:35] == b"\x4c\x50":
+    if data[34:36] == b"\x4c\x50" and data[8:12] in {b"\x00\x00\x01\x00", b"\x01\x00\x02\x00", b"\x02\x00\x02\x00"}:
         return ".eot"
 
     if data[0:4] == b"\x00\x00\x01\x00":
