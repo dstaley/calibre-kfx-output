@@ -10,7 +10,7 @@ from .kfx_container import (KfxContainer, MAX_KFX_CONTAINER_SIZE)
 from .kpf_book import KpfBook
 from .kpf_container import KpfContainer
 from .message_logging import log
-from .unpack_container import (IonTextContainer, ZipUnpackContainer)
+from .unpack_container import (IonTextContainer, JsonContentContainer, ZipUnpackContainer)
 from .utilities import (
         DataFile, file_read_utf8, flush_unicode_cache, bytes_to_separated_hex, KFXDRMError,
         temp_file_cleanup, ZIP_SIGNATURE)
@@ -109,9 +109,9 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
         self.decode_book()
 
         if self.has_pdf_resource:
-            result = KFX_PDF(self).extract_pdf_data()
+            result = KFX_PDF(self).extract_pdf_resources()
         elif self.is_fixed_layout:
-            result = KFX_PDF(self).convert_images_to_pdf_data()
+            result = KFX_PDF(self).convert_image_resources()
         else:
             result = None
 
@@ -186,6 +186,12 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
     def convert_to_zip_unpack(self):
         self.decode_book()
         result = ZipUnpackContainer(self.symtab, fragments=self.fragments).serialize()
+        self.final_actions()
+        return result
+
+    def convert_to_json_content(self):
+        self.decode_book()
+        result = JsonContentContainer(self).serialize()
         self.final_actions()
         return result
 

@@ -133,6 +133,7 @@ class KindlePreviewer(ConversionApplication):
             37103048: "3.45.0",
             37167048: "3.46.0",
             37716936: "3.47.0",
+            31192008: "3.48.0",
             }
 
     if IS_MACOS:
@@ -187,6 +188,7 @@ class KindlePreviewer(ConversionApplication):
             72516784: "3.45.0",
             72575904: "3.46.0",
             73125584: "3.47.0",
+            67212272: "3.48.0",
             }
 
     def locate_program(self):
@@ -232,7 +234,7 @@ class ConversionProcess(object):
         self.sequence = sequence
         self.application = sequence.application
         self.timeout_sec = sequence.timeout_sec
-        self.out_file = self.output = self.error_msg = self.returncode = None
+        self.out_file = self.output = self.error_msg = self.returncode = self.process_failure = None
         self.logs = collections.OrderedDict()
 
     def run(self):
@@ -307,10 +309,14 @@ class ConversionProcess(object):
         if timeout:
             self.error("Process Failure: %s did not complete within %d seconds" % (self.function_name, self.sequence.timeout_sec))
             self.returncode = -1
+            self.process_failure = True
         else:
             self.returncode = self.process.returncode & 0xffffffff
             if self.returncode:
                 self.error("Process Failure: %s return code %08x" % (self.function_name, self.returncode))
+                self.process_failure = True
+            else:
+                self.process_failure = False
 
         self.out_file.close()
         self.logs[os.path.basename(self.out_file_name)] = self.output = file_read_utf8(self.out_file_name)

@@ -6,7 +6,8 @@ import zipfile
 
 from .ion import (IonAnnotation, IonBLOB)
 from .ion_text import IonText
-from .utilities import (EXTS_OF_MIMETYPE, DataFile, font_file_ext, image_file_ext, type_name)
+from .message_logging import log
+from .utilities import (EXTS_OF_MIMETYPE, DataFile, font_file_ext, image_file_ext, json_serialize, type_name)
 from .yj_container import (YJContainer, YJFragment)
 from .yj_structure import SYMBOL_FORMATS
 
@@ -112,3 +113,39 @@ class ZipUnpackContainer(YJContainer):
         zfile.close()
 
         return data
+
+
+class JsonContentContainer(object):
+
+    VERSION = "1.0"
+    TYPE_TEXT = 1
+    TYPE_HTML = 8
+
+    def __init__(self, book):
+        self.book = book
+
+    def serialize(self):
+        content_pos_info = self.book.collect_content_position_info()
+        data = []
+        next_pid = 0
+
+        for chunk in content_pos_info:
+
+            if chunk.pid != next_pid:
+                log.error("next PID is %d but expected %d: %s" % (chunk.pid, next_pid, repr(chunk)))
+                next_pid = chunk.pid
+
+            if chunk.text is not None:
+                if len(chunk.text) != chunk.length:
+                    log.error("chunk length %d but have %d characters: %s" % (chunk.length, len(chunk.text), repr(chunk)))
+
+                entry = {}
+                entry["content"] = chunk.text
+                entry["position"] = chunk.pid
+                entry["type"] = self.TYPE_TEXT
+                data.append(entry)
+
+            next_pid += chunk.length
+
+        content = {"data": data, "version": self.VERSION}
+        return json_serialize(content, sort_keys=True, indent=2).encode("utf-8")

@@ -406,6 +406,7 @@ KNOWN_METADATA = {
             "1.42.6.0",
             "1.43.0.0",
             "1.44.13.0",
+            "1.45.20.0",
 
             "3.0.0",
             "3.1.0",
@@ -462,6 +463,7 @@ KNOWN_METADATA = {
             "3.45.0",
             "3.46.0",
             "3.47.0",
+            "3.48.0",
             }
 
     },
@@ -624,8 +626,9 @@ KNOWN_KCB_DATA = {
         "id": ANY,
         "log_path": ANY,
         "platform": ["mac", "win"],
+        "quality_report": ANY,
         "source_path": ANY,
-        "tool_name": ["KC", "KPR", "KTC"],
+        "tool_name": ["KC", "KPR", "KTC", "Kindle Previewer 3"],
         "tool_version": KNOWN_METADATA["kindle_audit_metadata"]["creator_version"],
         },
 

@@ -30,16 +30,17 @@ GEN_COVER_PAGE_NUMBER = True
 
 
 class ContentChunk(object):
-    def __init__(self, pid, eid, eid_offset, length, section_name, match_zero_len=False):
+    def __init__(self, pid, eid, eid_offset, length, section_name, match_zero_len=False, text=None):
         self.pid = pid
         self.eid = eid
         self.eid_offset = eid_offset
         self.length = length
         self.section_name = section_name
         self.match_zero_len = match_zero_len
+        self.text = text
 
-        if pid < 0 or (isinstance(eid, int) and eid <= 0) or eid_offset < 0 or length < 0:
-            raise Exception("bad ContentChunk: %s" % repr(self))
+        if pid < 0 or (isinstance(eid, int) and eid <= 0) or eid_offset < 0 or length < 0 or (text is not None and len(text) != length):
+            log.error("bad ContentChunk: %s" % repr(self))
 
     def __eq__(self, other, compare_pids=True):
 
@@ -54,10 +55,10 @@ class ContentChunk(object):
         return False
 
     def __repr__(self):
-        return "pid=%s eid=%s%s len=%s%s sect=%s" % (
+        return "pid=%s eid=%s%s len=%s%s sect=%s text=%s" % (
                 self.pid, self.eid,
                 "+" + "%d" % self.eid_offset if self.eid_offset else "", self.length,
-                "*" if self.match_zero_len else "", self.section_name)
+                "*" if self.match_zero_len else "", self.section_name, repr(self.text))
 
 
 class ConditionalTemplate(object):
@@ -144,7 +145,7 @@ class BookPosLoc(object):
             pending_story_names = []
 
             def extract_position_data(data, current_eid, content_key, list_index, list_max, advance):
-                def have_content(eid, length, advance_, allow_zero=True, match_zero_len=False):
+                def have_content(eid, length, advance_, allow_zero=True, match_zero_len=False, text=None):
                     if eid is None:
                         return
 
@@ -157,15 +158,27 @@ class BookPosLoc(object):
                         self.cpi_pid_for_offset_ += length
 
                     if section_pos_info and section_pos_info[-1].eid == eid:
-                        section_pos_info[-1].length += length
+                        last_chunk = section_pos_info.pop(-1)
+
                         self.cpi_pid_ += length
                         eid_offset += length
-                        length = 0
+                        length += last_chunk.length
 
-                        if section_pos_info[-1].length == 0 or not allow_zero:
+                        if last_chunk.text is not None or text is not None:
+                            text = (last_chunk.text or "") + (text or "")
+
+                        section_pos_info.append(ContentChunk(
+                            last_chunk.pid, last_chunk.eid, last_chunk.eid_offset, length, last_chunk.section_name,
+                            match_zero_len=last_chunk.match_zero_len, text=last_chunk.text))
+
+                        if length == 0 or not allow_zero:
                             return
 
-                    section_pos_info.append(ContentChunk(self.cpi_pid_, eid, eid_offset, length, eid_section[eid], match_zero_len=match_zero_len))
+                        length = 0
+                        text = None
+
+                    section_pos_info.append(
+                        ContentChunk(self.cpi_pid_, eid, eid_offset, length, eid_section[eid], match_zero_len=match_zero_len, text=text))
                     self.cpi_pid_ += length
 
                 data_type = ion_type(data)
@@ -232,7 +245,7 @@ class BookPosLoc(object):
                         fv = data["$145"]
                         if ion_type(fv) is IonStruct:
                             content = self.fragments[YJFragmentKey(ftype="$145", fid=fv["name"])].value["$146"][fv["$403"]]
-                            have_content(current_eid, unicode_len(content), advance)
+                            have_content(current_eid, unicode_len(content), advance, text=content)
 
                     if "$683" in data:
                         extract_position_data(data["$683"], current_eid, "$683", None, None, advance)
@@ -285,7 +298,7 @@ class BookPosLoc(object):
                     if content_key == "$146" and list_index == 0:
                         length -= 1
 
-                    have_content(current_eid, length, advance, allow_zero=list_index is not None and list_index < list_max)
+                    have_content(current_eid, length, advance, allow_zero=list_index is not None and list_index < list_max, text=data)
 
             extract_position_data(self.fragments[YJFragmentKey(ftype="$260", fid=section_name)], None, "$260", None, None, True)
 

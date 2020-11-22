@@ -37,7 +37,7 @@ class KFXOutput(OutputFormatPlugin):
     name = "KFX Output"
     author = "jhowell"
     file_type = "kfx"
-    version = (1, 45, 0)
+    version = (1, 46, 0)
     minimum_calibre_version = (2, 0, 0)                 # required for apsw with sqlite >= 3.8.2
     supported_platforms = ["windows", "osx"]
 
@@ -212,7 +212,7 @@ class KFXOutput(OutputFormatPlugin):
 
         self.convert_using_previewer(
                 JobLog(log), book_name, epub_filename, asin, opts.cde_type_pdoc, page_count,
-                opts.show_kpr_logs, False, TIMEOUT if opts.enable_timeout else None, output)
+                opts.show_kpr_logs, False, opts.enable_timeout, output)
 
     def cli_main(self, argv):
         self.cli = True
@@ -254,7 +254,7 @@ class KFXOutput(OutputFormatPlugin):
         elif intype in allowed_exts:
             self.convert_using_previewer(
                     log, book_name, input, args.asin, args.doc, args.pages, args.logs,
-                    args.clean, TIMEOUT if args.timeout else None, output)
+                    args.clean, args.timeout, output)
         else:
             raise Exception("Input file must be %s" % ext_choices)
 
@@ -269,14 +269,14 @@ class KFXOutput(OutputFormatPlugin):
         log.info("KFX Output plugin help is available at http://www.mobileread.com/forums/showthread.php?t=272407")
 
     def convert_using_previewer(self, log, book_name, input_filename, asin, cde_type_pdoc, approximate_pages,
-                                include_logs, save_cleaned, timeout_sec, output):
+                                include_logs, save_cleaned, enable_timeout, output):
         from calibre_plugins.kfx_output.kfxlib import (file_write_binary, set_logger, YJ_Book)
 
         set_logger(log)
         log.info("Converting %s" % input_filename)
 
         result = YJ_Book(input_filename, log).convert_to_kpf(
-                timeout_sec=timeout_sec,
+                timeout_sec=TIMEOUT if enable_timeout else None,
                 cleaned_filename=os.path.splitext(output)[0] + "_cleaned.epub" if save_cleaned else None)
         set_logger()
 
