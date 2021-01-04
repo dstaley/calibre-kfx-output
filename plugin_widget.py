@@ -26,7 +26,7 @@ class PluginWidget(Widget):
 
         Widget.__init__(self, parent, [
             "cde_type_pdoc", "show_kpr_logs", "approximate_pages", "number_of_pages_field",
-            "enable_timeout"])
+            "enable_timeout", "quality_report"])
 
         self.initialize_options(get_option, get_help, db, book_id)
 
@@ -79,6 +79,11 @@ class PluginWidget(Widget):
         self.opt_enable_timeout.setObjectName("opt_enable_timeout")
         self.opt_enable_timeout.setText("Enable conversion timeout")
         self.formLayout.addRow(self.opt_enable_timeout)
+
+        self.opt_quality_report = QtWidgets.QCheckBox(Form)
+        self.opt_quality_report.setObjectName("opt_quality_report")
+        self.opt_quality_report.setText("Include Kindle Previewer quality report")
+        self.formLayout.addRow(self.opt_quality_report)
 
         self.formLayout.addItem(QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding))
 

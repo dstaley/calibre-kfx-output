@@ -45,7 +45,6 @@ IS_WINDOWS = "win32" in PLATFORM_NAME or "win64" in PLATFORM_NAME
 IS_LINUX = not (IS_MACOS or IS_WINDOWS)
 LOCALE_ENCODING = locale.getdefaultlocale()[1] or "utf8"
 PATH_SEPARATOR = ";" if IS_WINDOWS else ":"
-EXECUTABLE_EXT = ".exe" if IS_WINDOWS else ""
 
 
 UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
@@ -591,6 +590,17 @@ def windows_error(hresult=None):
 
 def wine_user_dir(local_appdata=False, appdata=False):
     raise Exception("Linux/Wine is not currently supported.")
+
+
+def wineprefix():
+    return os.getenv("WINEPREFIX") or os.path.join(os.getenv("HOME"), ".wine")
+
+
+def winepath(path):
+    return os.path.join(
+        wineprefix(),
+        "dosdevices",
+        re.sub("[A-Z]+:", lambda x: x.group().lower(), path.replace("\\", "/"), count=1))
 
 
 def unicode_argv(argv):

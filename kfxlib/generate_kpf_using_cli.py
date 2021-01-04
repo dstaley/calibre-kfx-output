@@ -9,7 +9,7 @@ import os
 
 from .generate_kpf_common import (ConversionProcess, ConversionResult, ConversionSequence, KindlePreviewer)
 from .message_logging import log
-from .utilities import (file_read_binary, file_read_utf8, join_search_path, natural_sort_key, truncate_list)
+from .utilities import (file_read_binary, file_read_utf8, join_search_path, natural_sort_key, truncate_list, winepath, IS_LINUX)
 
 from .python_transition import IS_PYTHON2
 if IS_PYTHON2:
@@ -171,6 +171,9 @@ class KPR_CLI(ConversionSequence):
 
     def fix_output_filename(self, filename):
 
+        if IS_LINUX:
+            filename = winepath(filename)
+
         if not os.path.isfile(filename):
             dirname, basename = os.path.split(filename)
             root, ext = os.path.splitext(basename)
@@ -197,6 +200,9 @@ class KPR_CLI_Process(ConversionProcess):
             "-locale", "en",
             "-output", out_dir,
             ]
+
+        if IS_LINUX:
+            self.argv.insert(0, "wine")
 
         if "QC" in self.sequence.flags and self.application.program_version_sort >= natural_sort_key("3.37.0"):
             self.argv.append("-qualitychecks")

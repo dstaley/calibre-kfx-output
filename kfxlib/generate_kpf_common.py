@@ -5,6 +5,7 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 
 import base64
 import collections
+import io
 import os
 import platform
 import re
@@ -23,8 +24,8 @@ from .message_logging import log
 from .previewer_prep_epub import EpubPrep
 from .utilities import (
         create_temp_dir, file_read_binary, file_read_utf8, file_write_binary, locale_encode,
-        natural_sort_key, os_environ_get, quote_name, windows_user_dir, EXECUTABLE_EXT, IS_MACOS, IS_WINDOWS,
-        LOCALE_ENCODING)
+        natural_sort_key, os_environ_get, quote_name, windows_user_dir, winepath, wineprefix,
+        IS_LINUX, IS_MACOS, IS_WINDOWS, LOCALE_ENCODING)
 
 from .python_transition import IS_PYTHON2
 if IS_PYTHON2:
@@ -49,6 +50,7 @@ LOG_CONVERSION_DURATION_SEC = 60
 CONVERSION_SLEEP_SEC = 0.1
 COMPLETION_SLEEP_SEC = 1.0
 UNKNOWN_VERSION_PREFIX = "unknown"
+EXECUTABLE_EXT = ".exe" if IS_WINDOWS or IS_LINUX else ""
 
 
 class ConversionApplication(object):
@@ -79,7 +81,7 @@ class KindlePreviewer(ConversionApplication):
     TOOL_NAME = "KPR"
     MIN_SUPPORTED_VERSION = "3.38.0"
 
-    if IS_WINDOWS:
+    if IS_WINDOWS or IS_LINUX:
         PROGRAM_VERSIONS = {
             16263168: "3.0.0",
             16229376: "3.1.0",
@@ -218,7 +220,23 @@ class KindlePreviewer(ConversionApplication):
         if IS_MACOS:
             return "/Applications/Kindle Previewer 3.app/Contents/MacOS"
 
-        raise Exception("Kindle Previewer 3 is not supported under Linux")
+        if IS_LINUX:
+            userreg = os.path.join(wineprefix(), "user.reg")
+            if not os.path.isfile(userreg):
+                raise Exception("Wine registry file %s not found. Ensure that Wine is correctly installed." % userreg)
+
+            with io.open(userreg, "r") as file:
+                for line in file:
+                    if line.startswith("[Software\\\\Amazon\\\\Kindle Previewer 3]"):
+                        for line in file:
+                            match = re.search("@=\"([^\"]*)\"", line)
+                            if match:
+                                return winepath(match.group(1))
+
+                            if line.startswith("["):
+                                break
+
+            raise Exception("Kindle Previewer 3 not found in %s." % userreg)
 
 
 class ConversionProcess(object):

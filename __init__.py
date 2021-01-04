@@ -37,9 +37,9 @@ class KFXOutput(OutputFormatPlugin):
     name = "KFX Output"
     author = "jhowell"
     file_type = "kfx"
-    version = (1, 46, 0)
+    version = (1, 47, 0)
     minimum_calibre_version = (2, 0, 0)                 # required for apsw with sqlite >= 3.8.2
-    supported_platforms = ["windows", "osx"]
+    supported_platforms = ["windows", "osx", "linux"]
 
     options = {
         OptionRecommendation(
@@ -71,6 +71,10 @@ class KFXOutput(OutputFormatPlugin):
             name="enable_timeout", recommended_value=False,
             help="Stop conversions lasting over 15 minutes. This can help to debug cases where the Kindle Previewer becomes "
             "hung up during conversion."),
+
+        OptionRecommendation(
+            name="quality_report", recommended_value=False,
+            help="Include Kindle Previewer quality report messages in the conversion log."),
     }
 
     recommendations = EPUBOutput.recommendations
@@ -212,7 +216,7 @@ class KFXOutput(OutputFormatPlugin):
 
         self.convert_using_previewer(
                 JobLog(log), book_name, epub_filename, asin, opts.cde_type_pdoc, page_count,
-                opts.show_kpr_logs, False, opts.enable_timeout, output)
+                opts.show_kpr_logs, False, opts.enable_timeout, opts.quality_report, output)
 
     def cli_main(self, argv):
         self.cli = True
@@ -229,6 +233,7 @@ class KFXOutput(OutputFormatPlugin):
         parser.add_argument("-d", "--doc", action="store_true", help="Create personal document (PDOC) instead of book (EBOK)")
         parser.add_argument("-p", "--pages", action="store", type=int, default=-1,
                             help="Create n approximate page numbers if missing from input file (0 for auto)")
+        parser.add_argument("-q", "--quality", action="store_true", help="Include Kindle Previewer quality report in log")
         parser.add_argument("-t", "--timeout", action="store_true", help="Stop conversions lasting over 15 minutes")
         parser.add_argument("-l", "--logs", action="store_true", help="Show log files produced during conversion")
         parser.add_argument("infile", help="Pathname of the %s file to be converted" % ext_choices)
@@ -254,7 +259,7 @@ class KFXOutput(OutputFormatPlugin):
         elif intype in allowed_exts:
             self.convert_using_previewer(
                     log, book_name, input, args.asin, args.doc, args.pages, args.logs,
-                    args.clean, args.timeout, output)
+                    args.clean, args.timeout, args.quality, output)
         else:
             raise Exception("Input file must be %s" % ext_choices)
 
@@ -269,7 +274,7 @@ class KFXOutput(OutputFormatPlugin):
         log.info("KFX Output plugin help is available at http://www.mobileread.com/forums/showthread.php?t=272407")
 
     def convert_using_previewer(self, log, book_name, input_filename, asin, cde_type_pdoc, approximate_pages,
-                                include_logs, save_cleaned, enable_timeout, output):
+                                include_logs, save_cleaned, enable_timeout, quality_report, output):
         from calibre_plugins.kfx_output.kfxlib import (file_write_binary, set_logger, YJ_Book)
 
         set_logger(log)
@@ -277,6 +282,7 @@ class KFXOutput(OutputFormatPlugin):
 
         result = YJ_Book(input_filename, log).convert_to_kpf(
                 timeout_sec=TIMEOUT if enable_timeout else None,
+                flags={"QC"} if quality_report else None,
                 cleaned_filename=os.path.splitext(output)[0] + "_cleaned.epub" if save_cleaned else None)
         set_logger()
 

@@ -28,6 +28,7 @@ json_serialize = utilities.json_serialize
 unicode_argv = utilities.unicode_argv
 windows_long_path_fix = utilities.windows_long_path_fix
 
+IS_LINUX = utilities.IS_LINUX
 IS_MACOS = utilities.IS_MACOS
 IS_WINDOWS = utilities.IS_WINDOWS
 

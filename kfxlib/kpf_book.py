@@ -168,8 +168,6 @@ class KpfBook(object):
                             IS("$589"), IonStruct(IS("version"), IonStruct(
                                 IS("$587"), version[0],
                                 IS("$588"), version[1]))))
-            else:
-                log.warning("Feature %s already present in KPF" % feature)
 
         def add_feature_from_metadata(
                 metadata, feature, category="kindle_capability_metadata",
