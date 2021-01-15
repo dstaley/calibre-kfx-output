@@ -136,6 +136,8 @@ class KindlePreviewer(ConversionApplication):
             37167048: "3.46.0",
             37716936: "3.47.0",
             31192008: "3.48.0",
+            31392200: "3.49.0",
+            31391056: "3.50.0",
             }
 
     if IS_MACOS:
@@ -191,6 +193,8 @@ class KindlePreviewer(ConversionApplication):
             72575904: "3.46.0",
             73125584: "3.47.0",
             67212272: "3.48.0",
+            67636368: "3.49.0",
+            67636304: "3.50.0",
             }
 
     def locate_program(self):
