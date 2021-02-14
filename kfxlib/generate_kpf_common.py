@@ -24,7 +24,7 @@ from .message_logging import log
 from .previewer_prep_epub import EpubPrep
 from .utilities import (
         create_temp_dir, file_read_binary, file_read_utf8, file_write_binary, locale_encode,
-        natural_sort_key, os_environ_get, quote_name, windows_user_dir, winepath, wineprefix,
+        natural_sort_key, os_environ_get, quote_name, truncate_list, windows_user_dir, winepath, wineprefix,
         IS_LINUX, IS_MACOS, IS_WINDOWS, LOCALE_ENCODING)
 
 from .python_transition import IS_PYTHON2
@@ -45,6 +45,7 @@ PREPARE_EPUBS_FOR_PREVIEWER = True
 FORCED_CLEANED_FILENAME = None
 STOP_ONCE_INPUT_PREPARED = False
 LOG_CONVERSION_DURATION_SEC = 60
+MAX_GUIDANCE = 100
 
 
 CONVERSION_SLEEP_SEC = 0.1
@@ -252,12 +253,13 @@ class ConversionProcess(object):
         "SHELL", "SystemDrive", "SystemRoot", "TEMP", "TMP", "TMPDIR", "USER", "USERNAME", "USERPROFILE", "WINDIR",
         ]
 
-    def __init__(self, sequence):
+    def __init__(self, sequence, log_output=False):
         self.sequence = sequence
+        self.log_output = log_output
         self.application = sequence.application
         self.timeout_sec = sequence.timeout_sec
         self.out_file = self.output = self.error_msg = self.returncode = self.process_failure = None
-        self.logs = collections.OrderedDict()
+        self.log_data = collections.OrderedDict()
 
     def run(self):
         if self.start():
@@ -268,6 +270,7 @@ class ConversionProcess(object):
         log.info("Launching %s (%s) - %s" % (
             self.application.PROGRAM_NAME, self.application.program_version, self.function_name))
         self.out_file = open(self.out_file_name, "wb")
+        self.log_data["%s environment" % self.function_name] = self.execution_environment_log()
 
         if self.use_wincon and WindowsConsole is not None:
             self.wincon = WindowsConsole()
@@ -282,6 +285,7 @@ class ConversionProcess(object):
         except Exception as e:
             self.error("Failed to launch conversion process: %s" % repr(e))
             self.out_file.close()
+            self.process_failure = True
             return False
 
         return True
@@ -341,8 +345,12 @@ class ConversionProcess(object):
                 self.process_failure = False
 
         self.out_file.close()
-        self.logs[os.path.basename(self.out_file_name)] = self.output = file_read_utf8(self.out_file_name)
-        self.logs["%s environment" % self.function_name] = self.execution_environment_log()
+        self.output = file_read_utf8(self.out_file_name).rstrip()
+
+        if self.log_output:
+            log.info(self.output)
+        else:
+            self.log_data[os.path.basename(self.out_file_name)] = self.output
 
     def close_out_file(self):
         if self.out_file is not None:
@@ -460,28 +468,28 @@ class ConversionSequence(object):
         os.mkdir(unique_dir)
         return unique_dir
 
-    def combine_logs(self, log_data, error_msg):
-        logs = []
-        logs.append(error_msg or "Successful conversion to KPF")
-        logs.append("\n\n")
-
-        for fn in log_data.keys():
-            sep = "=" * max((78 - len(fn)) // 2, 4)
-            logs.append("%s %s %s\n" % (sep, fn, sep))
-            logs.append(log_data[fn])
-            logs.append("\n")
-
-        return "\n".join(logs)
-
     def cleanup_temp_files(self):
         if os.path.isdir(self.data_dir):
             shutil.rmtree(self.data_dir, ignore_errors=True)
 
 
 class ConversionResult(object):
-    def __init__(self, kpf_data=None, error_msg="", logs="", guidance="", cleaned_epub_data=None):
+    def __init__(self, kpf_data=None, error_msg="", log_data={}, guidance_msgs=[], cleaned_epub_data=None):
         self.kpf_data = kpf_data
         self.error_msg = error_msg
-        self.logs = logs
-        self.guidance = guidance
+        self.logs = self.combine_logs(log_data, error_msg)
+        self.guidance = "\n".join(truncate_list(guidance_msgs, MAX_GUIDANCE))
         self.cleaned_epub_data = cleaned_epub_data
+
+    def combine_logs(self, log_data, error_msg):
+        log_lst = []
+        log_lst.append(error_msg or "Successful conversion to KPF")
+        log_lst.append("")
+
+        for fn in log_data.keys():
+            sep = "=" * max((78 - len(fn)) // 2, 4)
+            log_lst.append("%s %s %s\n" % (sep, fn, sep))
+            log_lst.append(log_data[fn].rstrip())
+            log_lst.append("")
+
+        return "\n".join(log_lst)

@@ -9,7 +9,9 @@ import os
 
 from .generate_kpf_common import (ConversionProcess, ConversionResult, ConversionSequence, KindlePreviewer)
 from .message_logging import log
-from .utilities import (file_read_binary, file_read_utf8, join_search_path, natural_sort_key, truncate_list, winepath, IS_LINUX)
+from .utilities import (
+    file_read_binary, file_read_utf8, join_search_path, natural_sort_key, winepath,
+    IS_LINUX, PATH_SEPARATOR)
 
 from .python_transition import IS_PYTHON2
 if IS_PYTHON2:
@@ -21,8 +23,6 @@ __copyright__ = "2020, John Howell <jhowell@acm.org>"
 
 
 MAX_CONVERSION_RETRIES = 5
-
-MAX_GUIDANCE = 100
 
 
 class KPR_CLI(ConversionSequence):
@@ -45,13 +45,13 @@ class KPR_CLI(ConversionSequence):
 
     def perform_conversion_sequence_once(self):
         self.out_dir = self.create_unique_dir()
-        cli = KPR_CLI_Process(self)
+        cli = KPR_CLI_Process(self, log_output=True)
         cli.run(self.in_file_name, self.out_dir)
 
         error_msg = cli.error_msg
         allow_retry = not cli.process_failure
-        log_data = cli.logs
-        guidance_entries = []
+        log_data = cli.log_data
+        guidance_msgs = []
         kpf_data = None
 
         summary_log_name = "Summary_Log.csv"
@@ -89,6 +89,7 @@ class KPR_CLI(ConversionSequence):
                 allow_retry = False
         elif not error_msg:
             error_msg = "%s is missing: %s" % (summary_log_name, summary_log_csv_file)
+            allow_retry = False
 
         if conversion_log_file:
             if os.path.isfile(conversion_log_file):
@@ -127,7 +128,7 @@ class KPR_CLI(ConversionSequence):
                                 if k is not None and v:
                                     guidance_lines.append("    %s: %s" % (ustr(k), ustr(v)))
 
-                            guidance_entries.append("\n".join(guidance_lines) + "\n")
+                            guidance_msgs.append("\n".join(guidance_lines) + "\n")
 
                 except Exception as e:
                     error_msg = "Exception occurred processing log: %s" % repr(e)
@@ -161,16 +162,14 @@ class KPR_CLI(ConversionSequence):
                                 if k is not None and v:
                                     guidance_lines.append("    %s: %s" % (ustr(k), ustr(v)))
 
-                            guidance_entries.append("%s\n" % ("\n".join(guidance_lines)))
+                            guidance_msgs.append("%s\n" % ("\n".join(guidance_lines)))
 
                 except Exception as e:
-                    guidance_entries.append("Exception occurred processing quality report: %s\n" % repr(e))
+                    guidance_msgs.append("Exception occurred processing quality report: %s\n" % repr(e))
             else:
-                guidance_entries.append("Quality report file is missing: %s\n" % quality_report_file)
+                guidance_msgs.append("Quality report file is missing: %s\n" % quality_report_file)
 
-        return ConversionResult(
-                kpf_data=kpf_data, error_msg=error_msg, logs=self.combine_logs(log_data, error_msg),
-                guidance="\n".join(truncate_list(guidance_entries, MAX_GUIDANCE))), allow_retry
+        return ConversionResult(kpf_data=kpf_data, error_msg=error_msg, log_data=log_data, guidance_msgs=guidance_msgs), allow_retry
 
     def fix_output_filename(self, filename):
 
@@ -204,9 +203,6 @@ class KPR_CLI_Process(ConversionProcess):
             "-output", out_dir,
             ]
 
-        if IS_LINUX:
-            self.argv.insert(0, "wine")
-
         if "QC" in self.sequence.flags and self.application.program_version_sort >= natural_sort_key("3.37.0"):
             self.argv.append("-qualitychecks")
 
@@ -214,8 +210,18 @@ class KPR_CLI_Process(ConversionProcess):
         self.out_file_name = os.path.join(out_dir, "log_KPR_CLI.txt")
 
         self.get_clean_environment()
-        self.env[self.PATH_VAR_NAME] = join_search_path(
-                self.application.program_path, self.env.get(self.PATH_VAR_NAME, ""))
+
+        if IS_LINUX:
+            for path_component in self.env[self.PATH_VAR_NAME].split(PATH_SEPARATOR):
+                wine_path = os.path.join(path_component, "wine")
+                if os.path.isfile(wine_path):
+                    self.argv.insert(0, wine_path)
+                    break
+            else:
+                raise Exception("Failed to locate wine within %s = %s" % (self.PATH_VAR_NAME, self.env[self.PATH_VAR_NAME]))
+        else:
+            self.env[self.PATH_VAR_NAME] = join_search_path(
+                    self.application.program_path, self.env.get(self.PATH_VAR_NAME, ""))
 
         if "#" in self.env.get("TMP", "") or "#" in self.env.get("TEMP", ""):
             raise Exception("The TEMP folder path contains a \"#\" character. That is not supported by the Kindle Previewer")

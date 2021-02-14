@@ -25,8 +25,10 @@ KFX_POSITIONS_PER_LOCATION = 110
 
 TYPICAL_POSITIONS_PER_PAGE = 1850
 MIN_POSITIONS_PER_PAGE = 1
-MAX_POSITIONS_PER_PAGE = 20000
+MAX_POSITIONS_PER_PAGE = 50000
 GEN_COVER_PAGE_NUMBER = True
+MAX_WHITE_SPACE_ADJUST = 50
+DEBUG_PAGES = False
 
 
 class ContentChunk(object):
@@ -897,6 +899,10 @@ class BookPosLoc(object):
             log.error("Cannot create page numbers for KFX dictionary")
             return
 
+        if self.is_fixed_layout and self.get_metadata_value("yj_double_page_spread", "kindle_capability_metadata"):
+            log.error("Cannot create page numbers for fixed layout books with page spreads")
+            return
+
         reading_order_names = self.reading_order_names()
         if len(reading_order_names) != 1:
             log.error("Cannot create page numbers - Failed to locate single default reading order")
@@ -927,7 +933,8 @@ class BookPosLoc(object):
                                     "approximate" if nav_container_name == APPROXIMATE_PAGE_LIST else "real",
                                     str(desired_num_pages) if desired_num_pages else "auto"))
 
-                            if desired_num_pages == 0 or real_num_pages == desired_num_pages or nav_container_name != APPROXIMATE_PAGE_LIST:
+                            if ((desired_num_pages == 0 or real_num_pages == desired_num_pages or nav_container_name != APPROXIMATE_PAGE_LIST) and
+                                    not DEBUG_PAGES):
                                 return
                             else:
                                 nav_containers.pop(i)
@@ -939,7 +946,7 @@ class BookPosLoc(object):
                 return
 
         section_names = self.ordered_section_names()
-        pos_info = self.collect_position_map_info()
+        pos_info = self.collect_content_position_info()
 
         page_template_eids = set()
         for section_name in section_names:
@@ -965,9 +972,10 @@ class BookPosLoc(object):
             min_ppp = MIN_POSITIONS_PER_PAGE
             max_ppp = MAX_POSITIONS_PER_PAGE
 
-            while min_ppp < max_ppp:
+            while min_ppp <= max_ppp:
                 positions_per_page = (min_ppp + max_ppp) // 2
-                pages, new_section_page_count = self.determine_approximate_pages(pos_info, page_template_eids, section_names[0], positions_per_page)
+                pages, new_section_page_count = self.determine_approximate_pages(
+                        pos_info, page_template_eids, section_names[0], positions_per_page)
 
                 if len(pages) == desired_num_pages:
                     break
@@ -1006,38 +1014,67 @@ class BookPosLoc(object):
                 nav_containers.append(nav_container_name)
 
     def determine_approximate_pages(self, pos_info, page_template_eids, first_section_name, positions_per_page, fixed_layout=False):
+
         pages = []
-        page_num = 1
-        next_page_pid = 1
-        prev_section_name = None
         new_section_page_count = 0
-        new_section = False
+        next_page_pid = prev_section_name = None
+
+        if DEBUG_PAGES:
+            log.info("determine_approximate_pages: first_section_name=%s, positions_per_page=%d" % (
+                first_section_name, positions_per_page))
 
         for chunk in pos_info:
 
             if chunk.eid in page_template_eids:
                 continue
 
-            if (not GEN_COVER_PAGE_NUMBER) and chunk.section_name == first_section_name:
+            if chunk.section_name == first_section_name and not GEN_COVER_PAGE_NUMBER:
                 continue
 
-            if chunk.section_name != prev_section_name:
-                new_section = True
-                prev_section_name = chunk.section_name
+            new_section = chunk.section_name != prev_section_name
+            prev_section_name = chunk.section_name
 
-            if new_section or (chunk.pid >= next_page_pid and not fixed_layout):
-                pages.append(IonStruct(
-                    IS("$241"), IonStruct(IS("$244"), "%d" % page_num),
-                    IS("$246"), IonStruct(IS("$155"), chunk.eid, IS("$143"), chunk.eid_offset)))
-
+            if fixed_layout:
                 if new_section:
-                    new_section = False
-                    next_page_pid = chunk.pid + positions_per_page
                     new_section_page_count += 1
-                    page_num += 1
-                else:
-                    while chunk.pid >= next_page_pid:
-                        next_page_pid += positions_per_page
-                        page_num += 1
+                    pages.append(IonStruct(
+                        IS("$241"), IonStruct(IS("$244"), "%d" % (len(pages) + 1)),
+                        IS("$246"), IonStruct(IS("$155"), chunk.eid, IS("$143"), chunk.eid_offset)))
+            else:
+                if new_section:
+
+                    next_page_pid = chunk.pid
+                    new_section_page_count += 1
+
+                min_chunk_offset = 0
+                while True:
+                    chunk_offset = max(next_page_pid - chunk.pid, 0)
+                    if chunk_offset >= chunk.length:
+                        break
+
+                    if chunk.text and not chunk.text[chunk_offset].isspace():
+                        init_chunk_offset = chunk_offset
+                        while True:
+                            if chunk_offset == 0:
+                                break
+
+                            if chunk_offset <= min_chunk_offset:
+                                chunk_offset = init_chunk_offset
+                                break
+
+                            if chunk.text[chunk_offset-1].isspace():
+                                break
+
+                            chunk_offset -= 1
+
+                    pages.append(IonStruct(
+                        IS("$241"), IonStruct(IS("$244"), "%d" % (len(pages) + 1)),
+                        IS("$246"), IonStruct(IS("$155"), chunk.eid, IS("$143"), chunk.eid_offset + chunk_offset)))
+
+                    next_page_pid += positions_per_page
+                    min_chunk_offset = chunk_offset + max(positions_per_page - MAX_WHITE_SPACE_ADJUST, 1)
+
+        if DEBUG_PAGES:
+            log.info("determine_approximate_pages: produced_pages=%d" % (len(pages)))
 
         return (pages, new_section_page_count)

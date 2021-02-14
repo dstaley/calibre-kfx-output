@@ -273,7 +273,7 @@ class EpubPrep(object):
             container = etree.fromstring(self.data_files[CONTAINER_FILENAME].data, parser=self.xml_parser)
             rootfiles = container.find("{*}rootfiles")
             if rootfiles is not None:
-                for rootfile in rootfiles.findall(".//{*}rootfile"):
+                for rootfile in rootfiles.iterfind(".//{*}rootfile"):
                     if rootfile.get("media-type") == "application/oebps-package+xml":
                         full_path = rootfile.get("full-path")
                         if full_path in self.data_files:
@@ -304,7 +304,7 @@ class EpubPrep(object):
             log.info("Found EPUB NCX pageList")
             base_dir = dirname(root_path(f.filename))
 
-            for page_target in page_list.findall("{*}pageTarget"):
+            for page_target in page_list.iterfind("{*}pageTarget"):
                 nav_label = page_target.find("{*}navLabel")
                 content = page_target.find("{*}content")
                 if (nav_label is not None) and (content is not None):
@@ -319,7 +319,7 @@ class EpubPrep(object):
         base_dir = dirname(root_path(f.filename))
         page_map = etree.fromstring(f.data, parser=self.xml_parser)
 
-        for page in page_map.findall("{*}page"):
+        for page in page_map.iterfind("{*}page"):
             self.pages.append((page.get("name"), urlabspath(page.get("href"), working_dir=base_dir)))
 
     def get_nav_pages(self, f):
@@ -327,10 +327,10 @@ class EpubPrep(object):
         document = self.parse_xhtml_file(f)
         body = tfind(document, "body")
 
-        for nav in body.findall(".//{*}nav"):
+        for nav in body.iterfind(".//{*}nav"):
             if get_epub_type(nav) == "page-list":
                 log.info("Found EPUB nav page-list")
-                for li in nav.findall(".//{*}li"):
+                for li in nav.iterfind(".//{*}li"):
                     anchor = li.find("{*}a")
                     if (anchor is not None) and anchor.text:
                         self.pages.append((anchor.text, urlabspath(anchor.get("href"), working_dir=base_dir)))
@@ -342,7 +342,7 @@ class EpubPrep(object):
 
         manifest = package.find("{*}manifest")
         if manifest is not None:
-            for item in manifest.findall("{*}item"):
+            for item in manifest.iterfind("{*}item"):
                 id = item.get("id")
                 href = item.get("href")
                 if href:
@@ -368,7 +368,7 @@ class EpubPrep(object):
                 if page_map_file is not None:
                     page_map_file.is_page_map = True
 
-                for i, itemref in enumerate(spine.findall("{*}itemref")):
+                for i, itemref in enumerate(spine.iterfind("{*}itemref")):
                     idref = itemref.get("idref")
                     if idref in self.idmap:
                         self.data_files[self.idmap[idref]].reading_order = i
@@ -376,7 +376,7 @@ class EpubPrep(object):
         unique_id = package.get("unique-identifier", None)
         metadata = package.find("{*}metadata")
         if metadata is not None:
-            for ident in metadata.findall("{*}identifier"):
+            for ident in metadata.iterfind("{*}identifier"):
                 if ident.text and (
                         ident.get("id", None) == unique_id or re.match(r"^(urn:uuid:)?%s$" % UUID_RE, ident.text, flags=re.IGNORECASE)):
                     self.opf_identifiers.add(ident.text)
@@ -389,7 +389,7 @@ class EpubPrep(object):
 
             self.is_dictionary = metadata.find(".//{*}DictionaryInLanguage") is not None
 
-            for meta in metadata.findall(".//{*}meta"):
+            for meta in metadata.iterfind(".//{*}meta"):
                 meta_name = meta.get("name", "")
                 meta_content = meta.get("content", "")
 
