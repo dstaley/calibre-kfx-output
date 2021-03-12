@@ -6,6 +6,7 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 import csv
 import io
 import os
+import re
 
 from .generate_kpf_common import (ConversionProcess, ConversionResult, ConversionSequence, KindlePreviewer)
 from .message_logging import log
@@ -104,7 +105,7 @@ class KPR_CLI(ConversionSequence):
                         for row in csv.DictReader(logfile):
                             field = dict(row)
                             msg_type = ustr(field.pop("Type", ""))
-                            description = ustr(field.pop("Description", "")).strip()
+                            description = self.simplify_internal_filename(ustr(field.pop("Description", "")).strip(), " in file: ")
                             msg = "%s %s" % (msg_type, description)
 
                             if msg_type in {"Error", "ET Error"} and not have_error_msg:
@@ -116,7 +117,7 @@ class KPR_CLI(ConversionSequence):
 
                             source_file = ustr(field.pop("Source File", ""))
                             if source_file:
-                                msg = "    Source File: %s" % source_file
+                                msg = "    Source File: %s" % self.simplify_internal_filename(source_file)
 
                                 line_number = ustr(field.pop("Line Number", ""))
                                 if line_number:
@@ -185,6 +186,9 @@ class KPR_CLI(ConversionSequence):
                 return alt_filename
 
         return filename
+
+    def simplify_internal_filename(self, msg, prefix=""):
+        return re.sub((prefix or "^") + ".*cTemp[/\\\\]mTemp[/\\\\]mbp_[0-9A-F_]*[/\\\\]", prefix, msg, count=1)
 
 
 class KPR_CLI_Process(ConversionProcess):

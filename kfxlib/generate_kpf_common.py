@@ -139,6 +139,7 @@ class KindlePreviewer(ConversionApplication):
             31192008: "3.48.0",
             31392200: "3.49.0",
             31391056: "3.50.0",
+            31521120: "3.51.0",
             }
 
     if IS_MACOS:
@@ -196,6 +197,7 @@ class KindlePreviewer(ConversionApplication):
             67212272: "3.48.0",
             67636368: "3.49.0",
             67636304: "3.50.0",
+            67765504: "3.51.0",
             }
 
     def locate_program(self):
@@ -478,6 +480,10 @@ class ConversionResult(object):
         self.kpf_data = kpf_data
         self.error_msg = error_msg
         self.logs = self.combine_logs(log_data, error_msg)
+
+        if kpf_data is not None and error_msg:
+            guidance_msgs = guidance_msgs + [error_msg]
+
         self.guidance = "\n".join(truncate_list(guidance_msgs, MAX_GUIDANCE))
         self.cleaned_epub_data = cleaned_epub_data
 

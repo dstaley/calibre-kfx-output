@@ -11,6 +11,7 @@ __copyright__ = "2020, John Howell <jhowell@acm.org>"
 ANY = None
 TF = {False, True}
 
+
 PACKAGE_VERSION_PLACEHOLDERS = {
     "PackageVersion:YJReaderSDK-1.0.x.x GitSHA:c805492 Month-Day:04-22",
     "PackageVersion:YJReaderSDK-1.0.x.x GitSHA:[33mc805492[m Month-Day:04-22",
@@ -162,6 +163,7 @@ KNOWN_FEATURES = {
             785,
             786,
             787,
+            789,
             },
         },
 
@@ -412,6 +414,8 @@ KNOWN_METADATA = {
             "1.48.7.0",
             "1.49.0.0",
             "1.50.0.0",
+            "1.51.1.0",
+            "1.52.2.0",
 
             "3.0.0",
             "3.1.0",
@@ -471,6 +475,7 @@ KNOWN_METADATA = {
             "3.48.0",
             "3.49.0",
             "3.50.0",
+            "3.51.0",
             }
 
     },
