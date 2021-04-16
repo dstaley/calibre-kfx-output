@@ -21,7 +21,7 @@ from calibre.utils.config_base import tweaks
 from calibre.utils.logging import Log
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 PREPARED_FILE_SAVE_DIR = None
@@ -37,7 +37,7 @@ class KFXOutput(OutputFormatPlugin):
     name = "KFX Output"
     author = "jhowell"
     file_type = "kfx"
-    version = (1, 50, 0)
+    version = (1, 51, 0)
     minimum_calibre_version = (2, 0, 0)                 # required for apsw with sqlite >= 3.8.2
     supported_platforms = ["windows", "osx", "linux"]
 

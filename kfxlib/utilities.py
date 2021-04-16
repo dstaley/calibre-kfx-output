@@ -34,7 +34,7 @@ else:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 MAX_TEMPDIR_REMOVAL_TRIES = 60
@@ -218,6 +218,7 @@ except ImportError:
 
 tempdir_ = None
 atexit_set_ = False
+ALPHA_NUMERIC = string.ascii_lowercase + string.digits
 
 
 try:
@@ -272,7 +273,7 @@ def temp_filename(ext, data=None):
     if ext:
         ext = "." + ext
 
-    unique = "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(20))
+    unique = "".join(random.choice(ALPHA_NUMERIC) for _ in range(20))
     filename = os.path.join(tempdir(), unique + ext)
 
     if data is not None:

@@ -12,7 +12,7 @@ if sys.version_info[0] == 2:
     str = type(u"")
 
 
-__copyright__ = "2020, John Howell <jhowell@acm.org>, based on pseudo-code in the ITU-T T.832 08/2016 specification with corrections"
+__copyright__ = "2021, John Howell <jhowell@acm.org>, based on pseudo-code in the ITU-T T.832 08/2016 specification with corrections"
 
 
 DEBUG0 = False

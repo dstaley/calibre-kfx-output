@@ -19,7 +19,7 @@ if IS_PYTHON2:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 FIX_BOOK = True
@@ -54,7 +54,7 @@ class KpfBook(object):
 
         for fragment in list(self.fragments):
             if fragment.ftype != "$270":
-                fragment.value = self.kpf_fix_ion_data(fragment.value, ftype=fragment.ftype)
+                self.kpf_fix_fragment(fragment)
 
         for fragment in self.fragments.get_all("$266"):
             if fragment.value.get("$183", {}).get("$143", None) == 0:
@@ -311,96 +311,103 @@ class KpfBook(object):
     def kpf_gen_uuid_symbol(self):
         return self.create_local_symbol(str(uuid.uuid4()))
 
-    def kpf_fix_ion_data(self, data, container=None, ftype=None):
-        data_type = ion_type(data)
+    def kpf_fix_fragment(self, fragment):
+        def _fix_ion_data(data, container):
+            data_type = ion_type(data)
 
-        if data_type is IonAnnotation:
-            if data.is_annotation("$608"):
-                return self.kpf_fix_ion_data(data.value, container=container, ftype=ftype)
+            if data_type is IonAnnotation:
+                if data.is_annotation("$608"):
+                    return _fix_ion_data(data.value, container)
 
-            new_annot = [self.kpf_fix_ion_data(annot, ftype=ftype) for annot in data.annotations]
-            return IonAnnotation(new_annot, self.kpf_fix_ion_data(data.value, container=container, ftype=ftype))
+                new_annot = [_fix_ion_data(annot, None) for annot in data.annotations]
+                return IonAnnotation(new_annot, _fix_ion_data(data.value, container))
 
-        if data_type is IonList:
-            new_list = []
-            for i, fc in enumerate(data):
-                if container == "$146" and isinstance(fc, IonSymbol):
-                    structure = self.fragments.get(YJFragmentKey(ftype="$608", fid=fc))
-                    if structure is not None:
-                        fc = copy.deepcopy(structure.value)
+            if data_type is IonList:
+                new_list = []
+                for i, fc in enumerate(data):
+                    if container == "$146" and isinstance(fc, IonSymbol):
+                        structure = self.fragments.get(YJFragmentKey(ftype="$608", fid=fc))
+                        if structure is not None:
+                            fc = copy.deepcopy(structure.value)
 
-                if ((not self.is_dictionary) and
-                        ((ftype == "$609" and container == "contains_list_" and i == 1) or
-                         (ftype == "$538" and container == "yj.semantics.containers_with_semantics"))):
-                    fc = self.symbol_id(fc)
+                    if ((not self.is_dictionary) and (
+                            (fragment.ftype == "$609" and container == "contains_list_" and i == 1) or
+                            (fragment.ftype == "$538" and container == "yj.semantics.containers_with_semantics"))):
+                        fc = self.symbol_id(fc)
 
-                if container == "$181":
-                    list_container = "contains_list_"
-                elif container == "$141":
-                    list_container = "$141"
-                else:
-                    list_container = None
+                    if container == "$181":
+                        list_container = "contains_list_"
+                    elif container == "$141":
+                        list_container = "$141"
+                    else:
+                        list_container = None
 
-                new_list.append(self.kpf_fix_ion_data(fc, container=list_container, ftype=ftype))
+                    new_list.append(_fix_ion_data(fc, list_container))
 
-            return new_list
+                return new_list
 
-        if data_type is IonSExp:
-            new_sexp = IonSExp()
-            for fc in data:
-                new_sexp.append(self.kpf_fix_ion_data(fc, ftype=ftype))
+            if data_type is IonSExp:
+                new_sexp = IonSExp()
+                for fc in data:
+                    new_sexp.append(_fix_ion_data(fc, None))
 
-            return new_sexp
+                return new_sexp
 
-        if data_type is IonStruct:
-            new_struct = IonStruct()
-            for fk, fv in data.items():
-                fv = self.kpf_fix_ion_data(fv, container=fk, ftype=ftype)
+            if data_type is IonStruct:
+                new_struct = IonStruct()
+                for fk, fv in data.items():
+                    fv = _fix_ion_data(fv, fk)
 
-                if not self.is_dictionary:
-                    if fk == "$597":
+                    if not self.is_dictionary:
+                        if fk == "$597":
+                            continue
+
+                        if fk == "$239":
+                            self.create_local_symbol(str(fv))
+
+                        if fk in EID_REFERENCES and fragment.ftype != "$597" and isinstance(fv, IonSymbol):
+                            if fk == "$598":
+                                fk = IS("$155")
+
+                            if fragment.ftype != "$610" or self.fragments.get(ftype="$260", fid=fv) is None:
+                                fv = self.symbol_id(fv)
+
+                    if fk == "$161" and isstring(fv):
+                        fv = IS(FORMAT_SYMBOLS[fv])
+
+                    if (not self.retain_yj_locals) and (
+                            fk.startswith("yj.authoring.") or fk.startswith("yj.conversion.") or
+                            fk.startswith("yj.print.") or fk.startswith("yj.semantics.")):
                         continue
 
-                    if fk == "$239":
-                        self.create_local_symbol(str(fv))
+                    if (self.is_illustrated_layout and fragment.ftype == "$260" and container == "$141" and
+                            fk in ["$67", "$66"]):
+                        continue
 
-                    if fk in EID_REFERENCES and ftype != "$597" and isinstance(fv, IonSymbol):
-                        if fk == "$598":
-                            fk = IS("$155")
+                    if fk == "$165":
+                        if ion_type(fv) is not IonString:
+                            raise Exception("location is not IonString: %s" % fv)
 
-                        if ftype != "$610" or self.fragments.get(ftype="$260", fid=fv) is None:
-                            fv = self.symbol_id(fv)
+                        fv = fix_resource_location(fv)
 
-                if fk == "$161" and isstring(fv):
-                    fv = IS(FORMAT_SYMBOLS[fv])
+                    if fragment.ftype == "$157" and fk == "$173" and fv != fragment.fid:
+                        log.warning("Fixing incorrect name %s of style %s" % (fv, fragment.fid))
+                        fv = fragment.fid
 
-                if (not self.retain_yj_locals) and (
-                        fk.startswith("yj.authoring.") or fk.startswith("yj.conversion.") or
-                        fk.startswith("yj.print.") or fk.startswith("yj.semantics.")):
-                    continue
+                    new_struct[_fix_ion_data(fk, None)] = fv
 
-                if (self.is_illustrated_layout and ftype == "$260" and container == "$141" and
-                        fk in ["$67", "$66"]):
-                    continue
+                return new_struct
 
-                if fk == "$165":
-                    if ion_type(fv) is not IonString:
-                        raise Exception("location is not IonString: %s" % fv)
+            if data_type is IonFloat:
+                dec = decimal.Decimal("%g" % data)
+                if abs(dec) < 0.001:
+                    dec = decimal.Decimal("0")
 
-                    fv = fix_resource_location(fv)
+                return dec
 
-                new_struct[self.kpf_fix_ion_data(fk, ftype=ftype)] = fv
+            return data
 
-            return new_struct
-
-        if data_type is IonFloat:
-            dec = decimal.Decimal("%g" % data)
-            if abs(dec) < 0.001:
-                dec = decimal.Decimal("0")
-
-            return dec
-
-        return data
+        fragment.value = _fix_ion_data(fragment.value, None)
 
     def kpf_collect_content_strings(self, story_name, content_fragment_data):
 

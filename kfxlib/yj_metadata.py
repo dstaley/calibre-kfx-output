@@ -18,7 +18,7 @@ if IS_PYTHON2:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 class YJ_Metadata(object):
@@ -27,7 +27,7 @@ class YJ_Metadata(object):
         self.author_sort_fn = author_sort_name if author_sort_fn is None else author_sort_fn
         self.replace_existing_authors_with_sort = replace_existing_authors_with_sort
         self.title = self.cde_content_type = self.asin = self.cover_image_data = self.description = None
-        self.issue_date = self.language = self.publisher = self.book_id = self.features = None
+        self.issue_date = self.language = self.publisher = self.book_id = self.features = self.asset_id = None
 
 
 class BookMetadata(object):
@@ -61,6 +61,8 @@ class BookMetadata(object):
                             yj_metadata.publisher = val
                         elif key == "book_id":
                             yj_metadata.book_id = val
+                        elif key == "asset_id":
+                            yj_metadata.asset_id = val
 
         fragment = self.fragments.get("$258")
         if fragment is not None:
@@ -94,6 +96,8 @@ class BookMetadata(object):
                     yj_metadata.language = val
                 elif key == "publisher" and not yj_metadata.publisher:
                     yj_metadata.publisher = val
+                elif key == "asset_id" and not yj_metadata.asset_id:
+                    yj_metadata.asset_id = val
 
         yj_metadata.authors = []
         for author in authors:

@@ -29,7 +29,7 @@ else:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 DEOBFUSCATE_FONTS = True
@@ -846,11 +846,11 @@ class EpubPrep(object):
             fixed = True
 
         for elem in document.iter("*"):
+            tag = localname(elem.tag)
             id = elem.get("id")
+
             if id:
                 f.ids.append(id)
-
-            tag = localname(elem.tag)
 
             if tag == "a":
                 id = elem.get("name")

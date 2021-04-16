@@ -38,7 +38,7 @@ else:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 PREPARE_EPUBS_FOR_PREVIEWER = True
@@ -140,6 +140,7 @@ class KindlePreviewer(ConversionApplication):
             31392200: "3.49.0",
             31391056: "3.50.0",
             31521120: "3.51.0",
+            36353056: "3.52.0",
             }
 
     if IS_MACOS:
@@ -198,6 +199,7 @@ class KindlePreviewer(ConversionApplication):
             67636368: "3.49.0",
             67636304: "3.50.0",
             67765504: "3.51.0",
+            72317072: "3.52.0",
             }
 
     def locate_program(self):

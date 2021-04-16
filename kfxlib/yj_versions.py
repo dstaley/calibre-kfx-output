@@ -5,7 +5,7 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 ANY = None
@@ -286,6 +286,7 @@ KNOWN_FEATURES = {
             6,
             7,
             8,
+            9,
             },
 
         "yj_table_viewer": {
@@ -416,6 +417,8 @@ KNOWN_METADATA = {
             "1.50.0.0",
             "1.51.1.0",
             "1.52.2.0",
+            "1.52.4.0",
+            "1.52.6.0",
 
             "3.0.0",
             "3.1.0",
@@ -476,6 +479,7 @@ KNOWN_METADATA = {
             "3.49.0",
             "3.50.0",
             "3.51.0",
+            "3.52.0",
             }
 
     },

@@ -28,7 +28,7 @@ if IS_PYTHON2:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
@@ -74,8 +74,10 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
 
         self.symtab.set_translation(translation_symtab)
 
-    def final_actions(self):
-        self.symtab.report()
+    def final_actions(self, do_symtab_report=True):
+        if do_symtab_report:
+            self.symtab.report()
+
         flush_unicode_cache()
         temp_file_cleanup()
 
@@ -147,6 +149,7 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
         if not self.has_metadata():
             raise Exception("Failed to locate a KFX container with metadata")
 
+        self.final_actions(do_symtab_report=False)
         return self.get_yj_metadata_from_book()
 
     def convert_to_kpf(self, conversion=None, flags=None, timeout_sec=None, cleaned_filename=None):
@@ -181,6 +184,7 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
             traceback.print_exc()
             result = ConversionResult(error_msg=repr(e))
 
+        self.final_actions(do_symtab_report=False)
         return result
 
     def convert_to_zip_unpack(self):

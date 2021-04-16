@@ -28,7 +28,7 @@ if IS_PYTHON2:
 
 
 __license__ = "GPL v3"
-__copyright__ = "2020, John Howell <jhowell@acm.org>"
+__copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 REPORT_KNOWN_PROBLEMS = None
@@ -230,7 +230,7 @@ class BookStructure(object):
                             break
 
                     if fragment.fid != value_fid and not (self.is_kpf_prepub and fragment.ftype == "$608"):
-                        log.error("Fragment type %s has unexpected id %s instead of %s" % (
+                        log.error("Fragment type %s id %s has incorrect name %s" % (
                                     fragment.ftype, fragment.fid, value_fid))
 
             fragment_id_types[fragment.fid].add(fragment.ftype)
@@ -817,42 +817,45 @@ class BookStructure(object):
                 if container == "$155" or (self.is_kpf_prepub and container == "$174"):
                     eid_defs.add(data)
 
-                frag_ref = None
+                if container_parent == fragment.ftype and container in FRAGMENT_ID_KEYS.get(fragment.ftype, []):
+                    pass
+                else:
+                    frag_ref = None
 
-                special_refs = SPECIAL_FRAGMENT_REFERENCES.get(fragment.ftype)
-                if special_refs is not None:
-                    frag_ref = special_refs.get(container)
-
-                if frag_ref is None:
-                    special_refs = SPECIAL_PARENT_FRAGMENT_REFERENCES.get(fragment.ftype)
+                    special_refs = SPECIAL_FRAGMENT_REFERENCES.get(fragment.ftype)
                     if special_refs is not None:
-                        frag_ref = special_refs.get(container_parent)
+                        frag_ref = special_refs.get(container)
 
-                if frag_ref is None:
-                    frag_ref = NESTED_FRAGMENT_REFERENCES.get((container_parent, container))
+                    if frag_ref is None:
+                        special_refs = SPECIAL_PARENT_FRAGMENT_REFERENCES.get(fragment.ftype)
+                        if special_refs is not None:
+                            frag_ref = special_refs.get(container_parent)
 
-                if frag_ref is None:
-                    frag_ref = COMMON_FRAGMENT_REFERENCES.get(container)
+                    if frag_ref is None:
+                        frag_ref = NESTED_FRAGMENT_REFERENCES.get((container_parent, container))
 
-                if frag_ref is not None and frag_ref is not False:
-                    if container == "name" and container_parent in ["$249", "$692"]:
-                        mandatory_frag_refs.add(YJFragmentKey(ftype="$692", fid=data))
-                    elif (container == "$165" and self.fragments.get(ftype="$418", fid=data, first=True) is not None):
-                        mandatory_frag_refs.add(YJFragmentKey(ftype="$418", fid=data))
-                    elif container == "$635":
-                        optional_frag_refs.add(YJFragmentKey(ftype=frag_ref, fid=data))
-                    else:
-                        mandatory_frag_refs.add(YJFragmentKey(ftype=frag_ref, fid=data))
+                    if frag_ref is None:
+                        frag_ref = COMMON_FRAGMENT_REFERENCES.get(container)
 
-                    if frag_ref == "$260":
-                        for ref_key in [YJFragmentKey(ftype="$609", fid=data),
-                                        YJFragmentKey(ftype="$609", fid=data + "-spm"),
-                                        YJFragmentKey(ftype="$597", fid=data + "-ad"),
-                                        YJFragmentKey(ftype="$597", fid=data),
-                                        YJFragmentKey(ftype="$267", fid=data),
-                                        YJFragmentKey(ftype="$387", fid=data)]:
-                            if self.fragments.get(ref_key, first=True) is not None:
-                                mandatory_frag_refs.add(ref_key)
+                    if frag_ref is not None and frag_ref is not False:
+                        if container == "name" and container_parent in ["$249", "$692"]:
+                            mandatory_frag_refs.add(YJFragmentKey(ftype="$692", fid=data))
+                        elif (container == "$165" and self.fragments.get(ftype="$418", fid=data, first=True) is not None):
+                            mandatory_frag_refs.add(YJFragmentKey(ftype="$418", fid=data))
+                        elif container == "$635":
+                            optional_frag_refs.add(YJFragmentKey(ftype=frag_ref, fid=data))
+                        else:
+                            mandatory_frag_refs.add(YJFragmentKey(ftype=frag_ref, fid=data))
+
+                        if frag_ref == "$260":
+                            for ref_key in [YJFragmentKey(ftype="$609", fid=data),
+                                            YJFragmentKey(ftype="$609", fid=data + "-spm"),
+                                            YJFragmentKey(ftype="$597", fid=data + "-ad"),
+                                            YJFragmentKey(ftype="$597", fid=data),
+                                            YJFragmentKey(ftype="$267", fid=data),
+                                            YJFragmentKey(ftype="$387", fid=data)]:
+                                if self.fragments.get(ref_key, first=True) is not None:
+                                    mandatory_frag_refs.add(ref_key)
 
             if data_type is IonInt or data_type is IonSymbol:
                 if (container in {"$155", "$598"} and fragment.ftype not in {
