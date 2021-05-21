@@ -146,6 +146,7 @@ class EpubPrep(object):
         self.is_dictionary = self.is_kim = self.is_vertical_rl = self.is_fixed_layout = False
         self.book_type = "book"
         self.content_languages = collections.defaultdict(lambda: 0)
+        self.display_block_classes = set()
 
         if self.opf_file is not None:
             try:
@@ -211,6 +212,13 @@ class EpubPrep(object):
                     traceback.print_exc()
                     log.warning("Failed to read EPUB content %s: %s" % (f.filename, repr(e)))
 
+            if f.ext == "css" or f.mimetype == "text/css":
+                try:
+                    self.prepare_css(f)
+                except Exception as e:
+                    traceback.print_exc()
+                    log.warning("Failed to prepare EPUB CSS %s: %s" % (f.filename, repr(e)))
+
         for f in self.data_files.values():
             if self.opf_identifiers and f.ext in ["otf", "ttf", "woff", "eot", "dfont"]:
                 try:
@@ -225,13 +233,6 @@ class EpubPrep(object):
                 except Exception as e:
                     traceback.print_exc()
                     log.warning("Failed to prepare EPUB content %s: %s" % (f.filename, repr(e)))
-
-            if f.ext == "css" or f.mimetype == "text/css":
-                try:
-                    self.prepare_css(f)
-                except Exception as e:
-                    traceback.print_exc()
-                    log.warning("Failed to prepare EPUB CSS %s: %s" % (f.filename, repr(e)))
 
             if self.fix_gif and (f.ext == "gif" or f.mimetype == "image/gif"):
                 try:
@@ -859,8 +860,9 @@ class EpubPrep(object):
 
                 fixed = self.fix_href(elem, "HTML", base_dir, fix_spaces=f.is_nav) or fixed
 
-            if FIX_CALIBRE_CLASS_IN_BR and tag == "br" and elem.get("class", "").startswith("calibre"):
-                elem.attrib.pop("class", None)
+            if FIX_CALIBRE_CLASS_IN_BR and tag == "br" and set(elem.get("class", "").split()) & self.display_block_classes:
+                orig_style = elem.get("style", "")
+                elem.set("style", orig_style + ("; " if orig_style else "") + "display: inline")
                 br_fix_count += 1
                 fixed = True
 
@@ -884,6 +886,7 @@ class EpubPrep(object):
                         self.content_languages[v] += 1
 
             if tag == "style" and elem.text:
+                self.inventory_css_styles(elem.text)
                 style_text = self.fix_styles(elem.text, f.filename)
                 if style_text is not None:
                     elem.text = style_text
@@ -905,16 +908,24 @@ class EpubPrep(object):
                 fixed = True
 
         if br_fix_count:
-            log.info("Removed calibre class from %d br in %s" % (br_fix_count, f.filename))
+            log.info("Added display:inline to %d br in %s" % (br_fix_count, f.filename))
 
         if fixed:
             is_xml = (f.ext == "xhtml" or f.mimetype == "application/xhtml+xml" or f.data[:32].startswith(b"<?xml"))
             f.data = etree.tostring(document, encoding="utf-8", pretty_print=False, xml_declaration=is_xml)
 
     def prepare_css(self, f):
+        self.inventory_css_styles(f.data)
         data = self.fix_styles(f.data, f.filename)
         if data is not None:
             f.data = data
+
+    def inventory_css_styles(self, data):
+        if isinstance(data, bytes):
+            data = data.decode("utf-8", errors="ignore")
+
+        for class_name in re.findall("[.]([A-Za-z0-9_-]*)\\s*{[^}]*display\\s*:\\s*block\\s*[;}]", data):
+            self.display_block_classes.add(class_name)
 
     def fix_styles(self, data, filename):
         if FIX_WEBKIT_BOX_SHADOW and self.fix_webkit_box_shadow:

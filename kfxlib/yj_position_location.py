@@ -192,9 +192,10 @@ class BookPosLoc(object):
                     for i, fc in enumerate(data):
                         if content_key in {"$146", "$274"} and self.is_kpf_prepub:
                             if ion_type(fc) is IonSymbol:
-                                fc = self.fragments[YJFragmentKey(ftype="$608", fid=fc)]
+                                fc = self.fragments.get(YJFragmentKey(ftype="$608", fid=fc))
 
-                        extract_position_data(fc, current_eid, content_key, i, len(data)-1, advance)
+                        if fc is not None:
+                            extract_position_data(fc, current_eid, content_key, i, len(data)-1, advance)
 
                 elif data_type is IonSExp:
                     for fc in data:

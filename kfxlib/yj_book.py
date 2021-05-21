@@ -318,7 +318,7 @@ class YJ_Book(BookStructure, BookPosLoc, BookMetadata, KpfBook):
 
             raise KFXDRMError("Book container %s has DRM and cannot be converted" % datafile.name)
 
-        if data[0x3c:0x3c+8] == b"BOOKMOBI":
+        if data[0x3c:0x3c+8] in [b"BOOKMOBI", b"RBINCONT"]:
             raise Exception("File format is MOBI (not KFX) for %s" % datafile.name)
 
         raise Exception("Unable to determine KFX container type of %s (%s)" % (datafile.name, bytes_to_separated_hex(data[:8])))

@@ -66,16 +66,20 @@ class KPR_CLI(ConversionSequence):
                 with io.BytesIO(lg.encode("utf-8")) if IS_PYTHON2 else io.StringIO(lg) as csvfile:
                     for row in csv.DictReader(csvfile):
                         if ustr(row["Conversion Status"]) == "Success":
-                            if ustr(row["Enhanced Typesetting Status"]) == "Supported":
-                                kpf_filename = self.fix_output_filename(ustr(row["Output File Path"]))
+                            output_filename = self.fix_output_filename(ustr(row["Output File Path"]))
 
-                                if os.path.isfile(kpf_filename):
-                                    kpf_data = file_read_binary(kpf_filename)
+                            if ustr(row["Enhanced Typesetting Status"]) == "Supported":
+                                if os.path.isfile(output_filename):
+                                    kpf_data = file_read_binary(output_filename)
                                 else:
-                                    error_msg = "KPF file is missing: \"%s\"" % kpf_filename
+                                    error_msg = "KPF file is missing: \"%s\"" % output_filename
                                     break
                             else:
                                 error_msg = "Enhanced Typesetting not supported for this %s" % (self.full_book_type or "book")
+
+                                log.info("Output File Path: %s" % output_filename)
+                                if output_filename.endswith(".mobi"):
+                                    allow_retry = False
                         else:
                             error_msg = "Conversion failed"
 
