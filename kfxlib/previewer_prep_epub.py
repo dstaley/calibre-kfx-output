@@ -397,7 +397,7 @@ class EpubPrep(object):
                 if meta_name == "amzn:kindle-illustrated" and meta_content == "true":
                     self.is_kim = True
 
-                if meta_name == "book-type":
+                if meta_name == "book-type" and meta_content != "none":
                     self.book_type = meta_content
 
                 if ((meta_name == "fixed-layout" and meta_content == "true") or

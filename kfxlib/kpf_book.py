@@ -142,6 +142,12 @@ class KpfBook(object):
                         fragment.value[IS("$423")] = frag.value["$423"]
                         break
 
+        cover_image_data = self.get_cover_image_data()
+        if cover_image_data is not None:
+            new_cover_image_data = self.fix_cover_image_data(cover_image_data)
+            if new_cover_image_data != cover_image_data:
+                self.set_cover_image_data(new_cover_image_data)
+
         canonical_format = (2, 0) if self.is_illustrated_layout else (1, 0)
 
         file_creator = self.get_metadata_value("file_creator", category="kindle_audit_metadata", default="")
@@ -391,7 +397,7 @@ class KpfBook(object):
                         fv = fix_resource_location(fv)
 
                     if fragment.ftype == "$157" and fk == "$173" and fv != fragment.fid:
-                        log.warning("Fixing incorrect name %s of style %s" % (fv, fragment.fid))
+                        log.info("Fixing incorrect name %s of style %s" % (fv, fragment.fid))
                         fv = fragment.fid
 
                     new_struct[_fix_ion_data(fk, None)] = fv

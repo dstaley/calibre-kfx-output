@@ -13,7 +13,7 @@ from .ion import (
 from .kfx_container import KfxContainer
 from .message_logging import log
 from .utilities import (
-        disable_debug_log, EXTS_OF_MIMETYPE, list_symbols, list_truncated, natural_sort_key, type_name, UUID_MATCH_RE)
+        disable_debug_log, EXTS_OF_MIMETYPE, jpeg_type, list_symbols, list_truncated, natural_sort_key, type_name, UUID_MATCH_RE)
 from .version import __version__
 from .yj_container import (
         CONTAINER_FORMAT_KFX_MAIN, YJFragment, YJFragmentKey, YJFragmentList,
@@ -32,6 +32,7 @@ __copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 REPORT_KNOWN_PROBLEMS = None
+REPORT_NON_JFIF_COVER = False
 
 
 MAX_CONTENT_FRAGMENT_SIZE = 8192
@@ -235,13 +236,13 @@ class BookStructure(object):
 
             fragment_id_types[fragment.fid].add(fragment.ftype)
 
-        for fid, ftypes in fragment_id_types.items():
+        for fid, ftypes in sorted(list(fragment_id_types.items())):
             if len(ftypes) > 1 and (len(ftypes - SECTION_DATA_TYPES) > 0 or self.is_dictionary or self.is_kpf_prepub):
-                log.error("Book contains same fragment id %s with multiple types %s" % (fragment.fid, list_symbols(ftypes)))
+                log.error("Book contains fragment id %s with multiple types %s" % (fid, list_symbols(ftypes)))
 
-        for ftype in SINGLETON_FRAGMENT_TYPES:
+        for ftype in sorted(list(SINGLETON_FRAGMENT_TYPES)):
             if len(self.fragments.get_all(ftype)) > 1:
-                log.error("Multiple %s fragments present (only one expected per book)" % ftype)
+                log.error("Multiple %s fragments present (only one allowed per book)" % ftype)
 
         containers = {}
         entity_map_container_id = None
@@ -553,6 +554,13 @@ class BookStructure(object):
             if has_hdv_image and yj_hdv is None:
                 log.warning("HDV image detected without yj_hdv feature")
 
+        if REPORT_NON_JFIF_COVER:
+            cover_image_data = self.get_cover_image_data()
+            if cover_image_data is not None:
+                cover_fmt = jpeg_type(cover_image_data[1], cover_image_data[0])
+                if cover_fmt != "JPEG/JFIF":
+                    log.warning("Incorrect cover image format for lockscreen display: %s" % cover_fmt.upper())
+
         if self.has_pdf_resource:
             if self.get_feature_value("yj_non_pdf_fixed_layout") is not None:
                 log.warning("yj_non_pdf_fixed_layout feature present with PDF resource")
@@ -642,20 +650,13 @@ class BookStructure(object):
         for fragment in self.fragments:
             if fragment.ftype in unreferenced_fragment_types:
                 discovered.add(fragment)
-                if fragment.ftype == "$490":
-                    for cm in fragment.value["$491"]:
-                        if cm["$495"] == "kindle_title_metadata":
-                            for kv in cm["$258"]:
-                                if kv["$492"] == "cover_image":
-                                    fid = kv["$307"]
-                                    discovered.add(YJFragmentKey(
-                                        ftype="$164", fid=(fid if isinstance(fid, IonSymbol) else IS(fid))))
-
-                if fragment.ftype == "$258" and "$424" in fragment.value:
-                    discovered.add(YJFragmentKey(ftype="$164", fid=fragment.value["$424"]))
 
             if fragment.ftype not in KNOWN_FRAGMENT_TYPES:
                 discovered.add(fragment)
+
+        cover_fid = self.get_metadata_value("cover_image")
+        if cover_fid is not None:
+            discovered.add(YJFragmentKey(ftype="$164", fid=cover_fid))
 
         visited = set()
         mandatory_references = {}
@@ -686,7 +687,7 @@ class BookStructure(object):
 
             missing |= (next_visits - visited)
 
-        for key in missing:
+        for key in sorted(list(missing)):
             if key.ftype == "$597":
                 log.warning("Referenced fragment is missing from book: %s" % str(key))
             else:

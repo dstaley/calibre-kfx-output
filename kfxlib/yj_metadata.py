@@ -7,7 +7,7 @@ import string
 
 from .ion import (IS, IonBLOB, IonStruct, IonSymbol, ion_type, unannotated)
 from .message_logging import log
-from .utilities import (convert_pdf_to_jpeg, disable_debug_log, list_symbols, quote_name)
+from .utilities import (convert_pdf_to_jpeg, disable_debug_log, jpeg_type, list_symbols, quote_name)
 from .yj_container import (YJFragment, YJFragmentKey)
 from .yj_structure import (FORMAT_SYMBOLS, KFX_COVER_RESOURCE, METADATA_NAMES, METADATA_SYMBOLS, SYMBOL_FORMATS)
 from .yj_versions import (is_known_feature, is_known_generator, is_known_metadata, PACKAGE_VERSION_PLACEHOLDERS)
@@ -126,10 +126,11 @@ class BookMetadata(object):
         if book_metadata_fragment is None and metadata_fragment is None:
             log.error("Cannot set metadata due to missing metadata fragments in book")
 
-        if yj_metadata.cover_image_data is not None and yj_metadata.cover_image_data != self.get_cover_image_data():
-            cover_image = self.set_cover_image_data(yj_metadata.cover_image_data[0], yj_metadata.cover_image_data[1])
-        else:
-            cover_image = None
+        cover_image = None
+        if yj_metadata.cover_image_data is not None:
+            new_cover_image_data = self.fix_cover_image_data(yj_metadata.cover_image_data)
+            if new_cover_image_data != self.get_cover_image_data():
+                cover_image = self.set_cover_image_data(new_cover_image_data)
 
         if book_metadata_fragment is not None:
             for cm in book_metadata_fragment.value.get("$491", {}):
@@ -465,23 +466,33 @@ class BookMetadata(object):
                     try:
                         cover_resource = self.fragments[YJFragmentKey(ftype="$164", fid=val)].value
 
-                        resource_height = cover_resource.get("$423", 0)
-                        resource_width = cover_resource.get("$422", 0)
-                        if (not (resource_width and resource_height)) and "$165" in cover_resource:
+                        cover_raw_data = None
+                        if "$165" in cover_resource:
                             cover_raw_media = self.fragments.get(ftype="$417", fid=cover_resource["$165"])
                             if cover_raw_media is not None:
-                                with disable_debug_log():
-                                    cover = Image.open(io.BytesIO(cover_raw_media.value.tobytes()))
-                                    resource_width, resource_height = cover.size
-                                    cover.close()
+                                cover_raw_data = cover_raw_media.value.tobytes()
+
+                        resource_height = cover_resource.get("$423", 0)
+                        resource_width = cover_resource.get("$422", 0)
+
+                        if (not (resource_width and resource_height)) and cover_raw_data is not None:
+                            with disable_debug_log():
+                                cover = Image.open(io.BytesIO(cover_raw_data))
+                                resource_width, resource_height = cover.size
+                                cover.close()
 
                         val = "%dx%d" % (resource_width, resource_height)
 
-                        cover_format = SYMBOL_FORMATS[cover_resource["$161"]]
-                        if cover_format != "jpg":
+                        cover_format = SYMBOL_FORMATS.get(cover_resource["$161"], "unknown")
+
+                        if cover_raw_data is not None:
+                            cover_format = jpeg_type(cover_raw_data, cover_format)
+
+                        if cover_format != "JPEG/JFIF":
                             val += "-" + cover_format
+
                     except Exception:
-                        val = "..."
+                        val = "???"
 
                 elif key == "dictionary_lookup":
                     val = "%s-to-%s" % (val.get("$474", "?"), val.get("$163", "?"))
@@ -514,13 +525,37 @@ class BookMetadata(object):
 
         return ("jpeg" if cover_fmt == "jpg" else cover_fmt, cover_raw_media.value.tobytes())
 
-    def set_cover_image_data(self, fmt, data, update_cover_section=True):
-        fmt = fmt.lower()
+    def fix_cover_image_data(self, cover_image_data):
+        fmt = cover_image_data[0]
+        data = orig_data = cover_image_data[1]
+
+        if fmt.lower() in ["jpg", "jpeg"] and not data.startswith(b"\xff\xd8\xff\xe0"):
+            try:
+                with disable_debug_log():
+                    cover = Image.open(io.BytesIO(data))
+                    outfile = io.BytesIO()
+                    cover.save(outfile, "jpeg", quality=90)
+                    cover.close()
+
+                data = outfile.getvalue()
+            except Exception:
+                data = orig_data
+
+            if data.startswith(b"\xff\xd8\xff\xe0"):
+                log.info("Changed cover image from %s to JPEG/JFIF for Kindle lockscreen" % jpeg_type(orig_data))
+            else:
+                log.error("Failed to change cover image from %s to JPEG/JFIF" % jpeg_type(orig_data))
+                data = orig_data
+
+        return (fmt, data)
+
+    def set_cover_image_data(self, cover_image_data, update_cover_section=True):
+        fmt = cover_image_data[0].lower()
         if fmt == "jpeg":
             fmt = "jpg"
 
-        if fmt not in ["jpg", "png"]:
-            raise Exception("Cannot set KFX cover image format to %s, must be JPEG or PNG" % fmt.upper())
+        if fmt != "jpg":
+            raise Exception("Cannot set KFX cover image format to %s, must be JPEG" % fmt.upper())
 
         cover_image = self.get_metadata_value("cover_image")
         if cover_image is None:
@@ -529,6 +564,7 @@ class BookMetadata(object):
             self.fragments.append(YJFragment(ftype="$164", fid=cover_image_symbol,
                                   value=IonStruct(IS("$175"), cover_image_symbol)))
 
+        data = cover_image_data[1]
         cover_resource = self.update_image_resource_and_media(cover_image, data, fmt, update_cover_section)
 
         if "$214" in cover_resource:
@@ -643,7 +679,7 @@ class BookMetadata(object):
             log.error("Exception during conversion of PDF '%s' page %d to JPEG: %s" % (location, page_num, repr(e)))
             return None
 
-        return self.set_cover_image_data("jpeg", jpeg_data, update_cover_section=False)
+        return self.set_cover_image_data(("jpeg", jpeg_data), update_cover_section=False)
 
 
 def author_sort_name(author):

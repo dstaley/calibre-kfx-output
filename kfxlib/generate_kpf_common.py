@@ -64,10 +64,14 @@ class ConversionApplication(object):
         self.program_version = self.get_program_version()
         self.program_version_sort = natural_sort_key(self.program_version)
 
-        if (self.MIN_SUPPORTED_VERSION and (not self.program_version.startswith(UNKNOWN_VERSION_PREFIX)) and
-                self.program_version_sort < natural_sort_key(self.MIN_SUPPORTED_VERSION)):
-            raise Exception("Unsupported %s version %s is installed (version %s or newer required)" % (
-                    self.PROGRAM_NAME, self.program_version, self.MIN_SUPPORTED_VERSION))
+        if not self.program_version.startswith(UNKNOWN_VERSION_PREFIX):
+            if self.MIN_SUPPORTED_VERSION and self.program_version_sort < natural_sort_key(self.MIN_SUPPORTED_VERSION):
+                raise Exception("Unsupported %s version %s is installed (version %s or newer required)" % (
+                        self.PROGRAM_NAME, self.program_version, self.MIN_SUPPORTED_VERSION))
+
+            if self.MIN_DESIRED_VERSION and self.program_version_sort < natural_sort_key(self.MIN_DESIRED_VERSION):
+                log.warning("%s version %s is installed. Updating to a more recent version is recommended for better conversion results" % (
+                        self.PROGRAM_NAME, self.program_version))
 
     def get_program_version(self):
         if not os.path.isfile(self.main_program_path):
@@ -81,6 +85,7 @@ class KindlePreviewer(ConversionApplication):
     PROGRAM_NAME = "Kindle Previewer 3"
     TOOL_NAME = "KPR"
     MIN_SUPPORTED_VERSION = "3.38.0"
+    MIN_DESIRED_VERSION = None
 
     if IS_WINDOWS or IS_LINUX:
         PROGRAM_VERSIONS = {
@@ -142,6 +147,8 @@ class KindlePreviewer(ConversionApplication):
             31521120: "3.51.0",
             36353056: "3.52.0",
             30829600: "3.52.1",
+            36441120: "3.53.0",
+            36407896: "3.54.0",
             }
 
     if IS_MACOS:
@@ -202,7 +209,12 @@ class KindlePreviewer(ConversionApplication):
             67765504: "3.51.0",
             72317072: "3.52.0",
             66928400: "3.52.1",
+            72388352: "3.53.0",
+            73574736: "3.54.0",
             }
+
+    if not MIN_DESIRED_VERSION:
+        MIN_DESIRED_VERSION = sorted(list(PROGRAM_VERSIONS.values()), key=natural_sort_key)[-1]
 
     def locate_program(self):
         program_path = tweaks.get("kfx_output_previewer_path")

@@ -915,6 +915,26 @@ def sha256(data):
     return hashlib.sha256(data).digest()
 
 
+def jpeg_type(data, fmt="jpg"):
+
+    JPEG_SUBTYPES = {
+        b"\xff\xe0": "JFIF",
+        b"\xff\xe1": "EXIF",
+        b"\xff\xe2": "CANON",
+        b"\xff\xe3": "SAMSUNG",
+        b"\xff\xe8": "SPIFF",
+        b"\xff\xed": "ADOBE",
+    }
+
+    if fmt not in ["jpg", "jpeg"]:
+        return fmt.upper()
+
+    if data.startswith(b"\xff\xd8"):
+        return "JPEG/%s" % JPEG_SUBTYPES.get(data[2:4], "NON-JFIF")
+
+    return "UNKNOWN"
+
+
 ENABLE_WIDE_UNICODE_HANDLING = True
 
 UNICODE_PYTHON_NARROW_BUILD = (sys.maxunicode < 0x10ffff)
