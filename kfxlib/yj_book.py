@@ -18,8 +18,7 @@ from .yj_container import YJFragmentList
 from .yj_metadata import BookMetadata
 from .yj_position_location import BookPosLoc
 from .yj_structure import BookStructure
-from .yj_symbol_catalog import YJ_SYMBOLS
-from .yj_symbol_catalog import IonSharedSymbolTable
+from .yj_symbol_catalog import (IonSharedSymbolTable, YJ_SYMBOLS)
 
 
 from .python_transition import (IS_PYTHON2)

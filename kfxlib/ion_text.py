@@ -455,7 +455,7 @@ class IonText(IonSerial):
 
         sym = IonSymbol(name)
 
-        if self.import_symbols is None:
+        if self.import_symbols is not False:
             self.symtab.get_id(sym)
 
         return sym

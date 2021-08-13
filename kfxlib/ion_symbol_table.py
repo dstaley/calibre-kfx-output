@@ -337,6 +337,9 @@ class LocalSymbolTable(object):
 
             offset += table_import.max_id
 
+    def __repr__(self):
+        return "symbols: %s; id_of_symbol %s; symbol_of_id %s" % (repr(self.symbols), repr(self.id_of_symbol), repr(self.symbol_of_id))
+
     def report(self):
         if self.reported:
             return

@@ -164,6 +164,7 @@ KNOWN_FEATURES = {
             786,
             787,
             789,
+            797,
             },
         },
 
@@ -200,6 +201,7 @@ KNOWN_FEATURES = {
             4,
             5,
             6,
+            7,
             },
 
         "reflow-language": {
@@ -253,8 +255,9 @@ KNOWN_FEATURES = {
 
         "yj_graphical_highlights": {1},
 
-        "yj_hdv": {1},
-
+        "yj_hdv": {
+            1,
+            },
         "yj_interactive_image": {1},
 
         "yj_jpegxr_sd": {1},
@@ -263,15 +266,21 @@ KNOWN_FEATURES = {
 
         "yj_mathml": {1},
 
-        "yj_mixed_writing_mode": {1},
+        "yj_mixed_writing_mode": {
+            1,
+            },
 
         "yj_non_pdf_fixed_layout": {2},
 
         "yj_pdf_links": {1},
 
-        "yj_pdf_support": {1},
+        "yj_pdf_support": {
+            1,
+            },
 
-        "yj_publisher_panels": {2},
+        "yj_publisher_panels": {
+            2,
+            },
 
         "yj_rotated_pages": {1},
 
@@ -423,6 +432,9 @@ KNOWN_METADATA = {
             "1.53.1.0",
             "1.54.0.0",
             "1.55.0.0",
+            "1.56.0.0",
+            "1.57.0.0",
+            "1.58.0.0",
 
             "3.0.0",
             "3.1.0",
@@ -487,6 +499,9 @@ KNOWN_METADATA = {
             "3.52.1",
             "3.53.0",
             "3.54.0",
+            "3.55.0",
+            "3.56.0",
+            "3.56.1",
             }
 
     },

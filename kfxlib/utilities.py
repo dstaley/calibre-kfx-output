@@ -358,6 +358,14 @@ def json_deserialize(data, ordered=True):
     return json.loads(data)
 
 
+def gzipit(data):
+    gzip_file = io.BytesIO()
+    with gzip.GzipFile(fileobj=gzip_file, mode="wb") as f:
+        f.write(data)
+
+    return gzip_file.getvalue()
+
+
 def gunzip(data):
     with gzip.GzipFile(fileobj=io.BytesIO(data), mode="rb") as f:
         return f.read()

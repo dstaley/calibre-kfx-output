@@ -383,7 +383,7 @@ class EpubPrep(object):
                     self.opf_identifiers.add(ident.text)
 
             dc_date = metadata.find(".//{*}date")
-            if dc_date is not None:
+            if dc_date is not None and dc_date.text is not None:
                 m = re.match("[0-9]{4}-[0-9]{2}-[0-9]{2}", dc_date.text)
                 if m is not None and m.group(0) != "0101-01-01":
                     self.additional_metadata["issue_date"] = m.group(0)
