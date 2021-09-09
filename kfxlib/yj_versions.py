@@ -165,6 +165,7 @@ KNOWN_FEATURES = {
             787,
             789,
             797,
+            804,
             },
         },
 
@@ -185,134 +186,226 @@ KNOWN_FEATURES = {
 
     "com.amazon.yjconversion": {
 
-        "ar-reflow-language": {1},
-
-        "cn-reflow-language": {1},
-
-        "indic-reflow-language": {1},
-
-        "jp-reflow-language": {
+        "ar-reflow-language": {
             1,
             },
 
+        "cn-reflow-language": {
+            1,
+            },
+
+        "indic-reflow-language": {
+            1,
+            },
+
+        "jp-reflow-language": {
+            1,
+
+            },
+
         "jpvertical-reflow-language": {
+
             2,
+
             3,
+
             4,
+
             5,
+
             6,
+
             7,
             },
 
         "reflow-language": {
             2,
+
             3,
             },
 
-        "reflow-language-expansion": {1},
+        "reflow-language-expansion": {
+            1,
+            },
 
-        "tcn-reflow-language": {1},
+        "tcn-reflow-language": {
+            1,
+            },
 
-        "multiple_reading_orders-switchable": {1},
+        "multiple_reading_orders-switchable": {
+            1,
+            },
 
-        "reflow-section-size": ANY,
+        "reflow-section-size":
+            ANY,
 
         "reflow-style": {
             1,
+
             2,
+
             3,
+
             4,
+
             5,
+
             6,
+
             7,
+
             8,
+
             9,
+
             10,
+
             11,
+
             12,
+
             13,
+
             (2147483646, 2147483647),
             (2147483647, 2147483647),
             },
 
         "yj_audio": {
             1,
+
             2,
             },
 
-        "yj_custom_word_iterator": {1},
+        "yj_custom_word_iterator": {
+            1,
+            },
 
         "yj_dictionary": {
             1,
+
             2,
             },
 
-        "yj_double_page_spread": {1},
+        "yj_double_page_spread": {
+            1,
+            },
 
-        "yj_facing_page": {1},
+        "yj_facing_page": {
+            1,
+            },
 
-        "yj_fixed_layout": {1},
+        "yj_fixed_layout": {
+            1,
+            },
 
-        "yj_graphical_highlights": {1},
+        "yj_graphical_highlights": {
+            1,
+            },
 
         "yj_hdv": {
             1,
+
+            2,
             },
-        "yj_interactive_image": {1},
 
-        "yj_jpegxr_sd": {1},
+        "yj_interactive_image": {
+            1,
 
-        "yj_jpg_rst_marker_present": {1},
+            },
 
-        "yj_mathml": {1},
+        "yj_jpegxr_sd": {
+            1,
+            },
+
+        "yj_jpg_rst_marker_present": {
+            1,
+            },
+
+        "yj_mathml": {
+            1,
+            },
 
         "yj_mixed_writing_mode": {
             1,
+
             },
 
-        "yj_non_pdf_fixed_layout": {2},
+        "yj_non_pdf_fixed_layout": {
+            2,
+            },
 
-        "yj_pdf_links": {1},
+        "yj_pdf_links": {
+            1,
+            },
 
         "yj_pdf_support": {
             1,
+
             },
 
         "yj_publisher_panels": {
             2,
             },
 
-        "yj_rotated_pages": {1},
+        "yj_rotated_pages": {
+            1,
+            },
 
-        "yj_ruby": {1},
+        "yj_ruby": {
+            1,
+            },
 
         "yj_table": {
             1,
+
             2,
+
             3,
+
             4,
+
             5,
+
             6,
+
             7,
+
             8,
+
             9,
+
             10,
             },
 
         "yj_table_viewer": {
             1,
+
             2,
             },
 
-        "yj_textbook": {1},
+        "yj_textbook": {
+            1,
+            },
 
-        "yj_thumbnails_present": {1},
+        "yj_thumbnails_present": {
+            1,
+            },
 
-        "yj_video": {1},
+        "yj_vertical_text_shadow": {
+            1,
+            },
 
-        "yj.conditional_structure": {1},
+        "yj_video": {
+            1,
+            },
 
-        "yj.illustrated_layout": {1},
+        "yj.conditional_structure": {
+            1,
+            },
+
+        "yj.illustrated_layout": {
+            1,
+            },
 
         },
     }
@@ -351,6 +444,7 @@ KNOWN_METADATA = {
             "2.0.0.1",
 
             "1.0.11.1",
+            "1.3.0.0",
             "1.5.14.0",
             "1.8.1.0",
             "1.9.2.0",
@@ -435,6 +529,7 @@ KNOWN_METADATA = {
             "1.56.0.0",
             "1.57.0.0",
             "1.58.0.0",
+            "1.59.0.0",
 
             "3.0.0",
             "3.1.0",
@@ -502,6 +597,7 @@ KNOWN_METADATA = {
             "3.55.0",
             "3.56.0",
             "3.56.1",
+            "3.57.0",
             }
 
     },

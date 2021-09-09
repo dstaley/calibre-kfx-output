@@ -38,7 +38,9 @@ FIX_NCX_ENTITIES = True
 FIX_NCX_NAVMAP = True
 FIX_NCX_PAGELIST = True
 FIX_PAGE_MAP = True
+FIX_NAV_TOC = True
 FIX_NAV_PAGE_LIST = True
+FIX_BODY_ID_REF = True
 FIX_OPF_METADATA = True
 FIX_OPF_GUIDE = True
 FIX_ONLOAD_ATTRIB = True
@@ -428,7 +430,7 @@ class EpubPrep(object):
                 fix_language_order = False
 
                 for lang in metadata.findall("{*}language"):
-                    if lang.text.lower().partition(" ")[0] in ["und", "us"]:
+                    if lang.text.lower().partition(" ")[0].partition("-")[0] in ["pl", "und", "us"]:
                         log.info("Changed EPUB language from '%s' to 'en'" % lang.text)
                         lang.text = "en"
                         fixed = True
@@ -552,8 +554,8 @@ class EpubPrep(object):
                             self.delete_navpoint(nav_point)
                             fixed = True
 
-                        elif tid and (tf.body_id == tid):
-                            fixed_src = content.get("src").rpartition("#")[0]
+                        elif FIX_BODY_ID_REF and tid and (tf.body_id == tid):
+                            fixed_src = orig_src.rpartition("#")[0]
                             log.info("Adjusted NCX TOC reference to body element id: %s --> %s" % (orig_src, fixed_src))
                             content.set("src", fixed_src)
                             fixed = True
@@ -599,6 +601,7 @@ class EpubPrep(object):
 
     def prepare_nav(self, f):
 
+        base_dir = dirname(root_path(f.filename))
         fixed = False
         document = self.parse_xhtml_file(f)
         body = tfind(document, "body")
@@ -611,6 +614,19 @@ class EpubPrep(object):
                     parent.remove(nav)
                     log.info("Removed NAV landmarks")
                     fixed = True
+
+        if FIX_NAV_TOC:
+            for nav in body.findall(".//{*}nav"):
+                if get_epub_type(nav) == "toc":
+                    for li in nav.findall(".//{*}li"):
+                        a = li.find(".//{*}a")
+                        if a is not None:
+                            orig_href = a.get("href")
+                            sort_key = self.ref_file_id_and_key(urlabspath(orig_href, working_dir=base_dir))[2]
+                            if sort_key is None:
+                                log.info("Removed NAV TOC reference to non-existent target: %s" % orig_href)
+                                li.getparent().remove(li)
+                                fixed = True
 
         if FIX_NAV_PAGE_LIST:
             page_urls = set()
@@ -947,7 +963,7 @@ class EpubPrep(object):
             src = urlabspath(href, working_dir=base_dir)
 
             tf, tid, sort_key = self.ref_file_id_and_key(src)
-            if tf and tid and (tf.body_id == tid):
+            if FIX_BODY_ID_REF and tf and tid and (tf.body_id == tid):
                 fixed_href = href.rpartition("#")[0]
                 log.info("Adjusted %s reference to body element id: %s --> %s" % (ftype, href, fixed_href))
                 elem.set("href", fixed_href)

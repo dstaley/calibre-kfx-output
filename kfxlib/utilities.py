@@ -25,7 +25,7 @@ import zipfile
 from .jxr_container import JXRContainer
 from .message_logging import log
 
-from .python_transition import (IS_PYTHON2, bytes_to_list)
+from .python_transition import (IS_PYTHON2, bytes_to_hex, bytes_to_list)
 if IS_PYTHON2:
     from .python_transition import (html, str, urllib)
 else:
@@ -157,6 +157,7 @@ EXTS_OF_MIMETYPE = {
     "application/x-kfx-magazine": [".kfx"],
     "application/x-mobi8-ebook": [".azw3"],
     "application/x-mobi8-images": [".azw6"],
+    "application/x-mobipocket-ebook-mop": [".azw4"],
     "application/x-font-type1": [".pfb"],
     "application/x-rar-compressed": [".rar"],
     "application/x-protobuf": [".bin"],
@@ -925,22 +926,28 @@ def sha256(data):
 
 def jpeg_type(data, fmt="jpg"):
 
-    JPEG_SUBTYPES = {
-        b"\xff\xe0": "JFIF",
-        b"\xff\xe1": "EXIF",
-        b"\xff\xe2": "CANON",
-        b"\xff\xe3": "SAMSUNG",
-        b"\xff\xe8": "SPIFF",
-        b"\xff\xed": "ADOBE",
-    }
-
     if fmt not in ["jpg", "jpeg"]:
         return fmt.upper()
 
-    if data.startswith(b"\xff\xd8"):
-        return "JPEG/%s" % JPEG_SUBTYPES.get(data[2:4], "NON-JFIF")
+    if not data.startswith(b"\xff\xd8"):
+        return "UNKNOWN(%s)" % bytes_to_hex(data[:12])
 
-    return "UNKNOWN"
+    if data[2:4] == b"\xff\xe0" and data[6:10] == b"JFIF":
+        return "JPEG"
+
+    if data[2:4] == b"\xff\xe1" and data[6:10] == b"Exif":
+        return "JPEG/Exif"
+
+    if data[2:4] == b"\xff\xe8":
+        return "JPEG/SPIFF"
+
+    if data[2:4] in [b"\xff\xed", b"\xff\xee"]:
+        return "JPEG/Adobe"
+
+    if data[2:4] in [b"\xff\xdb", b"\xff\xde"]:
+        return "JPEG/no-app-marker"
+
+    return "JPEG/UNKNOWN(%s)" % bytes_to_hex(data[:12])
 
 
 ENABLE_WIDE_UNICODE_HANDLING = True

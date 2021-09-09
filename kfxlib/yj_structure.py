@@ -32,7 +32,8 @@ __copyright__ = "2021, John Howell <jhowell@acm.org>"
 
 
 REPORT_KNOWN_PROBLEMS = None
-REPORT_NON_JFIF_COVER = False
+REPORT_NON_JPEG_JFIF_COVER = False
+REPORT_JPEG_VARIANTS = False
 
 
 MAX_CONTENT_FRAGMENT_SIZE = 8192
@@ -533,6 +534,11 @@ class BookStructure(object):
                                         log.warning("Resource %s has image format %s and mime type %s" % (
                                                 resource_name, img_format, mime))
 
+                                if img_format == "jpg" and REPORT_JPEG_VARIANTS:
+                                    jtype = jpeg_type(image_data)
+                                    if jtype not in ["JPEG"]:
+                                        log.warning("Resource %s is unexpected JPEG variant %s" % (resource_name, jtype))
+
                                 if (img_width and img_height and resource_width and resource_height and
                                         (img_width != resource_width or img_height != resource_height)):
                                     log.warning("Resource %s is %dx%d, image %s is %dx%d" % (
@@ -554,12 +560,12 @@ class BookStructure(object):
             if has_hdv_image and yj_hdv is None:
                 log.warning("HDV image detected without yj_hdv feature")
 
-        if REPORT_NON_JFIF_COVER:
+        if REPORT_NON_JPEG_JFIF_COVER:
             cover_image_data = self.get_cover_image_data()
             if cover_image_data is not None:
                 cover_fmt = jpeg_type(cover_image_data[1], cover_image_data[0])
-                if cover_fmt != "JPEG/JFIF":
-                    log.warning("Incorrect cover image format for lockscreen display: %s" % cover_fmt.upper())
+                if cover_fmt != "JPEG":
+                    log.warning("Incorrect cover image format for Kindle lockscreen display: %s" % cover_fmt.upper())
 
         if self.has_pdf_resource:
             if self.get_feature_value("yj_non_pdf_fixed_layout") is not None:
@@ -995,7 +1001,7 @@ class BookStructure(object):
             return SYM_TYPE.ORIGINAL
 
         if (re.match(
-                r"^(resource/)?[A-Za-z0-9_-]{22}[A-Z0-9]{1,6}"
+                r"^(resource/)?[A-Za-z0-9_-]{22}[A-Z0-9]{0,6}"
                 r"((-hd|-first-frame|-thumb)?(-resized-[0-9]+-[0-9]+|-hd-tile-[0-9]+-[0-9]+)?|"
                 r"-ad|-spm|_thumbnail|-transcoded|(_thumb)?\.jpg|\.ttf|\.otf|\.woff|\.eot|\.dfont|\.bin)?$", name)):
             return SYM_TYPE.BASE64

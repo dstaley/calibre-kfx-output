@@ -211,7 +211,7 @@ class KPR_CLI_Process(ConversionProcess):
             "-output", out_dir,
             ]
 
-        if "QC" in self.sequence.flags and self.application.program_version_sort >= natural_sort_key("3.37.0"):
+        if "QC" in self.sequence.flags and self.application.program_version_sort >= natural_sort_key("3.40.0"):
             self.argv.append("-qualitychecks")
 
         self.working_dir = out_dir

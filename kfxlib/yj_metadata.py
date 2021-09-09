@@ -488,7 +488,7 @@ class BookMetadata(object):
                         if cover_raw_data is not None:
                             cover_format = jpeg_type(cover_raw_data, cover_format)
 
-                        if cover_format != "JPEG/JFIF":
+                        if cover_format != "JPEG":
                             val += "-" + cover_format
 
                     except Exception:

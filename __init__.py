@@ -37,7 +37,7 @@ class KFXOutput(OutputFormatPlugin):
     name = "KFX Output"
     author = "jhowell"
     file_type = "kfx"
-    version = (1, 54, 0)
+    version = (1, 55, 0)
     minimum_calibre_version = (2, 0, 0)                 # required for apsw with sqlite >= 3.8.2
     supported_platforms = ["windows", "osx", "linux"]
 
@@ -58,7 +58,7 @@ class KFXOutput(OutputFormatPlugin):
         OptionRecommendation(
             name="approximate_pages", recommended_value=False,
             help="Create approximate page numbers if real page numbers are not present in the source file of the book. "
-            "(The default value for this option will also be used the KFX Metadata Writer.)"),
+            "(The default value for this option will also be used by the KFX Metadata Writer.)"),
 
         OptionRecommendation(
             name="number_of_pages_field", recommended_value=AUTO_PAGES,
