@@ -276,7 +276,7 @@ class BookMetadata(object):
     @property
     def is_fixed_layout(self):
         if not hasattr(self, "_cached_is_fixed_layout"):
-            self._cached_is_fixed_layout = self.get_metadata_value("yj_fixed_layout", "kindle_capability_metadata")
+            self._cached_is_fixed_layout = self.get_metadata_value("yj_fixed_layout", "kindle_capability_metadata") is not None
 
         return self._cached_is_fixed_layout
 
@@ -315,18 +315,6 @@ class BookMetadata(object):
                 self._cached_has_pdf_resource = False
 
         return self._cached_has_pdf_resource
-
-    @property
-    def has_hdv_image_resource(self):
-        if not hasattr(self, "_cached_has_hdv_image_resource"):
-            for fragment in self.fragments.get_all("$164"):
-                if fragment.value.get(IS("$422"), 0) > 1920 or fragment.value.get(IS("$423"), 0) > 1920:
-                    self._cached_has_hdv_image_resource = True
-                    break
-            else:
-                self._cached_has_hdv_image_resource = False
-
-        return self._cached_has_hdv_image_resource
 
     def get_metadata_value(self, name, category="kindle_title_metadata", default=None):
         try:

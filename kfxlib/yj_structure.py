@@ -83,6 +83,11 @@ for k, v in FORMAT_SYMBOLS.items():
     SYMBOL_FORMATS[v] = k
 
 
+CHECKED_IMAGE_FMTS = {"bmp", "bpg", "gif", "ico", "jpg", "pbm", "png", "svg", "tiff", "webp"}
+UNCHECKED_IMAGE_FMTS = {"jxr", "kvg", "pdf"}
+ALL_IMAGE_FMTS = CHECKED_IMAGE_FMTS | UNCHECKED_IMAGE_FMTS
+
+
 FRAGMENT_ID_KEYS = {
     "$266": ["$180"],
     "$597": ["$174", "$598"],
@@ -451,7 +456,7 @@ class BookStructure(object):
         if (self.cde_type == "EBSP") is not is_sample:
             log.warning("Feature/content mismatch: cde_type=%s, is_sample=%s" % (self.cde_type, is_sample))
 
-        has_hdv_image = False
+        has_hdv_image = has_tiles = has_overlapped_tiles = has_jpeg_rst_marker = has_jpeg_xr_image = False
 
         for fragment in self.fragments.get_all("$164"):
             resource_name = str(fragment.fid)
@@ -470,6 +475,9 @@ class BookStructure(object):
             if mime is not None:
                 if mime in EXTS_OF_MIMETYPE:
                     mime_fmt = EXTS_OF_MIMETYPE[mime][0][1:]
+
+                    if not format_fmt:
+                        format_fmt = mime_fmt
                 else:
                     log.error("External resource %s has unknown mime type %s" % (resource_name, mime))
 
@@ -480,10 +488,13 @@ class BookStructure(object):
             if resource_height > 1920 or resource_width > 1920:
                 has_hdv_image = True
 
-            IMAGE_FMTS = ["bmp", "bpg", "gif", "ico", "jpg", "pbm", "png", "svg", "tiff", "webp"]
-            UNCHECKED_IMAGE_FMTS = ["jxr", "kvg", "pdf"]
+            if "$636" in resource:
+                has_tiles = True
 
-            if format_fmt in IMAGE_FMTS or mime_fmt in IMAGE_FMTS:
+                if "$797" in resource:
+                    has_overlapped_tiles = True
+
+            if format_fmt in ALL_IMAGE_FMTS:
                 if location is not None:
                     if ion_type(location) is not IonString:
                         log.error("Resource %s location is type %s" % (str(fragment.fid), type_name(location)))
@@ -492,7 +503,7 @@ class BookStructure(object):
                     if raw_media is not None:
                         image_data = raw_media.value.tobytes()
 
-                        if format_fmt in UNCHECKED_IMAGE_FMTS:
+                        if format_fmt in UNCHECKED_IMAGE_FMTS or mime_fmt in UNCHECKED_IMAGE_FMTS:
                             img_ok = True
                             img_format = format_fmt
                             img_transparent = img_animated = False
@@ -539,6 +550,12 @@ class BookStructure(object):
                                     if jtype not in ["JPEG"]:
                                         log.warning("Resource %s is unexpected JPEG variant %s" % (resource_name, jtype))
 
+                                if img_format == "jpg" and (not has_jpeg_rst_marker) and re.search(b"\xff[\xd0-\xd7]", image_data):
+                                    has_jpeg_rst_marker = True
+
+                                if img_format == "jxr":
+                                    has_jpeg_xr_image = True
+
                                 if (img_width and img_height and resource_width and resource_height and
                                         (img_width != resource_width or img_height != resource_height)):
                                     log.warning("Resource %s is %dx%d, image %s is %dx%d" % (
@@ -550,15 +567,28 @@ class BookStructure(object):
                                 if img_animated and img_format != "webp":
                                     log.warning("Image at location %s has animation" % location)
                             else:
-                                log.warning("Resource %s has unexpected image format %s" % (
+                                log.warning("Resource %s has unexpected image format: %s" % (
                                         resource_name, img_format))
                         else:
                             log.warning("Resource %s location %s has bad image" % (resource_name, location))
 
-        if (not self.is_fixed_layout) and (not self.is_magazine) and (not self.is_sample):
-            yj_hdv = self.get_feature_value("yj_hdv")
-            if has_hdv_image and yj_hdv is None:
-                log.warning("HDV image detected without yj_hdv feature")
+        yj_hdv = self.get_feature_value("yj_hdv")
+        if has_tiles and yj_hdv is None:
+            log.warning("HDV image tiles detected without yj_hdv feature")
+        elif has_overlapped_tiles and (yj_hdv is None or yj_hdv < 2):
+            log.warning("HDV overlapped tiles detected without yj_hdv-2 feature")
+        elif yj_hdv is not None and not (has_tiles or has_hdv_image):
+            log.warning("Feature/content mismatch: yj_hdv-%s without HDV image/tiles" % str(yj_hdv))
+
+        yj_jpg_rst_marker_present = self.get_feature_value("yj_jpg_rst_marker_present")
+        if (yj_jpg_rst_marker_present is not None) is not has_jpeg_rst_marker:
+            log.warning("Feature/content mismatch: yj_jpg_rst_marker_present=%s has_jpeg_rst_marker=%s" % (
+                yj_jpg_rst_marker_present, has_jpeg_rst_marker))
+
+        yj_jpegxr_sd = self.get_feature_value("yj_jpegxr_sd")
+        if (yj_jpegxr_sd is not None) is not has_jpeg_xr_image:
+            log.warning("Feature/content mismatch: yj_jpegxr_sd=%s has_jpeg_xr_image=%s" % (
+                yj_jpegxr_sd, has_jpeg_xr_image))
 
         if REPORT_NON_JPEG_JFIF_COVER:
             cover_image_data = self.get_cover_image_data()

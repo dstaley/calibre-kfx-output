@@ -97,7 +97,7 @@ class KfxContainer(YJContainer):
         if DEBUG:
             log.debug("container info:\n%s" % repr(container_info))
 
-        container_id = container_info.pop("$409")
+        container_id = container_info.pop("$409", "")
 
         compression_type = container_info.pop("$410", DEFAULT_COMPRESSION_TYPE)
         if compression_type != DEFAULT_COMPRESSION_TYPE:
@@ -122,9 +122,9 @@ class KfxContainer(YJContainer):
 
             self.symtab.create(self.doc_symbols.value)
 
-        chunk_size = container_info.pop("$412", 0)
+        chunk_size = container_info.pop("$412", KfxContainer.DEFAULT_CHUNK_SIZE)
         if chunk_size != KfxContainer.DEFAULT_CHUNK_SIZE:
-            log.warning("Unexpected bcChunkSize in container %s info: %d" % (chunk_size, container_id))
+            log.warning("Unexpected bcChunkSize in container %s info: %d" % (container_id, chunk_size))
 
         if version > 1:
             format_capabilities_offset = container_info.pop("$594", None)

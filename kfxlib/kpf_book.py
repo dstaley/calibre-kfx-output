@@ -2,6 +2,7 @@ from __future__ import (unicode_literals, division, absolute_import, print_funct
 
 import copy
 import decimal
+import re
 import uuid
 
 
@@ -130,16 +131,17 @@ class KpfBook(object):
             self.fragments.append(YJFragment(ftype="$418", fid=self.create_local_symbol(location), value=font_data_fragment.value))
 
         for fragment in self.fragments.get_all("$164"):
-            if (fragment.value.get("$161") == "$287" and "$422" not in fragment.value and
-                    "$423" not in fragment.value and "$167" in fragment.value):
+            fv = fragment.value
+            if (fv.get("$161") == "$287" and "$422" not in fv and
+                    "$423" not in fv and "$167" in fv):
 
-                referred_resources = fragment.value["$167"]
+                referred_resources = fv["$167"]
                 for frag in self.fragments.get_all("$164"):
                     if (frag.fid in referred_resources and "$422" in frag.value and
                             "$423" in frag.value):
 
-                        fragment.value[IS("$422")] = frag.value["$422"]
-                        fragment.value[IS("$423")] = frag.value["$423"]
+                        fv[IS("$422")] = frag.value["$422"]
+                        fv[IS("$423")] = frag.value["$423"]
                         break
 
         cover_image_data = self.get_cover_image_data()
@@ -189,9 +191,32 @@ class KpfBook(object):
                 add_feature_from_metadata("yj_fixed_layout", "yj_fixed_layout")
             else:
                 add_feature_from_metadata("yj_fixed_layout", "yj_non_pdf_fixed_layout", version=2)
-        else:
-            if self.has_hdv_image_resource:
+
+        has_hdv_image = has_tiles = yj_jpg_rst_marker_present = False
+        for fragment in self.fragments.get_all("$164"):
+            fv = fragment.value
+            if fv.get("$422", 0) > 1920 or fv.get("$423", 0) > 1920 or "$636" in fv:
+                has_hdv_image = True
+
+            if IS("$797") in fv:
+                has_tiles = True
+
+            if (not yj_jpg_rst_marker_present) and fv.get("$161") == "$285":
+                location = fv.get("$165", None)
+                if location is not None:
+                    raw_media = self.fragments.get(ftype="$417", fid=location, first=True)
+                    if raw_media is not None:
+                        if re.search(b"\xff[\xd0-\xd7]", raw_media.value.tobytes()):
+                            yj_jpg_rst_marker_present = True
+
+        if not self.is_fixed_layout:
+            if has_tiles:
+                add_feature("yj_hdv", (2, 0))
+            elif has_hdv_image:
                 add_feature("yj_hdv")
+
+        if yj_jpg_rst_marker_present:
+            add_feature("yj_jpg_rst_marker_present")
 
         add_feature_from_metadata("graphical_highlights", "yj_graphical_highlights")
         add_feature_from_metadata("yj_textbook", "yj_textbook")
@@ -383,7 +408,8 @@ class KpfBook(object):
 
                     if (not self.retain_yj_locals) and (
                             fk.startswith("yj.authoring.") or fk.startswith("yj.conversion.") or
-                            fk.startswith("yj.print.") or fk.startswith("yj.semantics.")):
+                            fk.startswith("yj.print.") or fk.startswith("yj.semantics.") or
+                            fk == "$790"):
                         continue
 
                     if (self.is_illustrated_layout and fragment.ftype == "$260" and container == "$141" and

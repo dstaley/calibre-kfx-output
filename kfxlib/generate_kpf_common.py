@@ -153,6 +153,8 @@ class KindlePreviewer(ConversionApplication):
             36519000: "3.56.0",
             36520024: "3.56.1",
             36624472: "3.57.0",
+            36629080: "3.57.1",
+            31135832: "3.58.0",
             }
 
     if IS_MACOS:
@@ -219,6 +221,8 @@ class KindlePreviewer(ConversionApplication):
             73750896: "3.56.0",
             73750960: "3.56.1",
             73901008: "3.57.0",
+            73901552: "3.57.1",
+            73902000: "3.58.0",
             }
 
     if not MIN_DESIRED_VERSION:

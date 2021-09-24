@@ -158,8 +158,9 @@ class LocalSymbolTable(object):
             symbol_list = symbol_table.symbols[:max_id]
         elif max_id > table_len:
             if table_len > 0:
-                log.warning("Import symbol table %s version %d max_id %d exceeds known table size %d" % (
-                        name, version, max_id, table_len))
+                prior_len = len(self.symbols)
+                log.warning("Import symbol table %s version %d max_id %d(+%d=%d) exceeds known table size %d(+%d=%d)" % (
+                        name, version, max_id, prior_len, max_id + prior_len, table_len, prior_len, table_len + prior_len))
 
             symbol_list = symbol_table.symbols + ([None] * (max_id - table_len))
         else:
